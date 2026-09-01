@@ -1,0 +1,59 @@
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Builds and generated artifacts
+build/
+dist/
+*.egg-info/
+.wheelhouse/
+*.whl
+*.tar.gz
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Legacy plugin repositories and migration-only workspace inputs
+/.briefs/
+/.qa-011-sync/
+/.worktrees/
+/archive/
+/comfy-lora-hotswap/
+/diagrams/
+/h3-forge/
+/h3-tools/
+/lora-hot-swap/
+/tmp*/
+/hf-*.json
+/local-h3*.txt
+/linux-port-*.md
+/MULTI-AGENT-DELEGATION.md
+/QA-PROTOCOL.md
+/SERVABLE-ACCEPTANCE.md
+/diagrams$f-arch-1440.png
+
+# Model, evidence, and media payloads are never committed at repository root
+/*.safetensors
+/*.ckpt
+/*.pt
+/*.pth
+/*.bin
+/*.mp4
+/*.wav

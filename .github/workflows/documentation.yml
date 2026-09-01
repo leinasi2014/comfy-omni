@@ -1,0 +1,36 @@
+name: documentation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  readme-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate README structure
+        run: python scripts/check_readme_sync.py
+
+      - name: Require bilingual README updates in pull requests
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          english=0
+          chinese=0
+          grep -qx 'README.md' <<<"$changed" && english=1 || true
+          grep -qx 'README.zh-CN.md' <<<"$changed" && chinese=1 || true
+          if [ "$english" -ne "$chinese" ]; then
+            echo 'README.md and README.zh-CN.md must be updated together.' >&2
+            exit 1
+          fi
