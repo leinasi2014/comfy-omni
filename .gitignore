@@ -30,25 +30,6 @@ Thumbs.db
 *.pem
 *.key
 
-# Legacy plugin repositories and migration-only workspace inputs
-/.briefs/
-/.qa-011-sync/
-/.worktrees/
-/archive/
-/comfy-lora-hotswap/
-/diagrams/
-/h3-forge/
-/h3-tools/
-/lora-hot-swap/
-/tmp*/
-/hf-*.json
-/local-h3*.txt
-/linux-port-*.md
-/MULTI-AGENT-DELEGATION.md
-/QA-PROTOCOL.md
-/SERVABLE-ACCEPTANCE.md
-/diagrams$f-arch-1440.png
-
 # Model, evidence, and media payloads are never committed at repository root
 /*.safetensors
 /*.ckpt

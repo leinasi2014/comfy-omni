@@ -27,14 +27,15 @@ M0.5 已经完成发行边界上的合并：
 | 身份 | 目标值 |
 |---|---|
 | 项目名 | `ComfyOmni` |
+| GitHub repository | `comfy-omni` |
 | PyPI distribution | `comfy-omni` |
 | Python import package | `comfy_omni` |
 | CLI | `comfy-omni` |
 | 标语 | `Bring Comfy checkpoints to native Omni runtimes.` |
 
 命名含义：项目把 Comfy 生态 checkpoint 经过检查、转换、打包和验证，交付给原生 Omni
-运行时。公开文档、仓库标题、包元数据和 CLI 帮助统一使用 `ComfyOmni`；代码标识使用
-`comfy_omni`，发行与命令使用 `comfy-omni`。
+运行时。产品标题和文档品牌使用 `ComfyOmni`；GitHub 仓库、发行与命令使用小写 kebab-case
+`comfy-omni`；代码标识使用 snake_case `comfy_omni`。
 
 本命名决策只确定项目、distribution、import package、CLI 和标语。现有 HTTP URL、环境变量、
 artifact schema、manifest 字段及已发布制品中的 `h3_forge`/`h3-comfy` 标识不自动随之改名；
@@ -384,7 +385,8 @@ HTTP 和 artifact 六类消费面，再决定最小兼容周期。
 
 | 消费面 | 当前值 | `0.2.0` 目标 | 默认兼容策略 |
 |---|---|---|---|
-| 项目/仓库标题 | `h3-forge` | `ComfyOmni` | 直接切换并保留迁移说明 |
+| 项目标题 | `h3-forge` | `ComfyOmni` | 直接切换并保留迁移说明 |
+| GitHub repository | 内部旧仓 | `comfy-omni` | 独立公开 Git 根，小写 kebab-case |
 | distribution | `h3-forge` | `comfy-omni` | 新 distribution；发布前核验并保留 PyPI/GitHub 名称 |
 | Python import | `h3_forge` | `comfy_omni` | 无真实消费者则直接切换；否则单独 shim PR |
 | console script | `h3-forge` | `comfy-omni` | 默认直接切换；是否保留旧 alias 由消费清单决定 |
@@ -797,9 +799,9 @@ comfy_omni = [
 
 ### 12.1 公开根目录
 
-公开仓只应以当前独立 `h3-forge` Git 根的受控内容为来源，公开仓库名和项目标题使用
-`ComfyOmni`。外层 `plugins/`、旧 sibling 仓、worktree、Codex 临时目录和本地参考克隆均不属于
-开源项目。
+公开仓使用独立 Git 根 `plugins/comfy-omni/`，GitHub slug 为 `comfy-omni`，项目标题为
+`ComfyOmni`。旧 `h3-forge` 及其他 sibling 仓只作为审计后的迁移输入；外层 `plugins/`、worktree、
+Codex 临时目录、本地参考克隆和证据目录均不属于开源项目。
 
 当前 Git remote 指向 RFC1918 地址/本地 sibling 仓，且提交历史来自 subtree 吸收。开源时默认创建
 新的 public mirror/export repo，在审计后的 commit 上演练 clone/build/test，再设置独立的公开 remote；
@@ -887,7 +889,8 @@ docs/
 
 工作：
 
-- 确认公开内容只来自当前 `h3-forge` Git 根，公开仓库目标名为 `ComfyOmni`；
+- 确认公开内容只进入独立 `plugins/comfy-omni/` Git 根，公开仓库 slug 为 `comfy-omni`，旧
+  `h3-forge` 只作为逐文件审计的迁移来源；
 - 核验并预留 GitHub/PyPI 名称，核对 ComfyUI/相关项目的名称与商标使用要求，并在 README 明确项目
   归属；输出 import、CLI、entry point、环境变量、HTTP、artifact 六类消费面清单，签字决定是否
   需要任何 `h3_forge`/旧 CLI shim；

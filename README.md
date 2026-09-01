@@ -20,6 +20,28 @@ evidence.
 ComfyOmni is an independent open-source project. It is not an official project of ComfyUI, Comfy.org,
 vLLM, MiniMax, or their respective maintainers unless explicitly stated otherwise.
 
+<!-- README_SYNC: naming -->
+## Naming and source layout
+
+| Role | Name/path |
+|---|---|
+| Product and documentation title | `ComfyOmni` |
+| GitHub repository and clone directory | `comfy-omni` |
+| PyPI distribution | `comfy-omni` |
+| CLI command | `comfy-omni` |
+| Python import package | `comfy_omni` |
+| Importable source path | `src/comfy_omni/` |
+
+A clone therefore has the path `comfy-omni/src/comfy_omni`. The repository name is not repeated
+inside the repository: `src/` separates importable code from project files, while `comfy_omni` uses
+an underscore because Python import packages should be valid identifiers. GitHub may compact a
+single-child directory chain and display `src/comfy_omni` as one row.
+
+This follows the Python Packaging User Guide's
+[src-layout guidance](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/)
+and its distinction between
+[distribution and import packages](https://packaging.python.org/en/latest/discussions/distribution-package-vs-import-package/).
+
 <!-- README_SYNC: status -->
 ## Project status
 
@@ -91,11 +113,12 @@ Detailed sequencing and exit criteria are maintained in the
 ├── README.zh-CN.md           # Simplified Chinese project overview
 ├── docs/                     # Design, ADRs, and public evidence indexes
 ├── scripts/                  # Repository checks
-└── src/comfy_omni/           # New modular Python package skeleton
+├── src/comfy_omni/           # New modular Python package skeleton
+└── tests/                    # Unit, contract, integration, packaging, and host lanes
 ```
 
-Legacy repositories and local evidence located beside this skeleton are explicitly ignored and are
-not part of the public ComfyOmni repository.
+Legacy repositories and local evidence remain outside this independent Git root. They are not part
+of the public ComfyOmni repository and may enter it only through an audited migration.
 
 <!-- README_SYNC: development -->
 ## Development

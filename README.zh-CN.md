@@ -18,6 +18,28 @@ ComfyOmni 是一个开源桥接项目，用于检查、转换、打包和验证 
 ComfyOmni 是独立的开源项目。除非另有明确说明，它不属于 ComfyUI、Comfy.org、vLLM、MiniMax 或
 这些项目维护者的官方项目。
 
+<!-- README_SYNC: naming -->
+## 命名与源码目录
+
+| 身份 | 名称／路径 |
+|---|---|
+| 产品与文档标题 | `ComfyOmni` |
+| GitHub 仓库及 clone 后的目录 | `comfy-omni` |
+| PyPI distribution | `comfy-omni` |
+| CLI 命令 | `comfy-omni` |
+| Python import package | `comfy_omni` |
+| 可导入源码路径 | `src/comfy_omni/` |
+
+因此 clone 后的完整关系是 `comfy-omni/src/comfy_omni`。仓库内部不会再重复创建
+`comfy-omni/`：`src/` 用于隔离可导入源码与项目文件；`comfy_omni` 使用下划线，是因为 Python
+import package 应当是合法标识符。GitHub 可能把只有一个子目录的连续路径压缩成一行
+`src/comfy_omni` 显示。
+
+这个结构遵循 Python Packaging User Guide 的
+[src-layout 说明](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/)
+以及
+[distribution package 与 import package 的区别](https://packaging.python.org/en/latest/discussions/distribution-package-vs-import-package/)。
+
 <!-- README_SYNC: status -->
 ## 项目状态
 
@@ -85,10 +107,12 @@ CLI / HTTP API / runtime integrations
 ├── README.zh-CN.md           # 简体中文项目简介
 ├── docs/                     # 设计文档、ADR 和公开证据索引
 ├── scripts/                  # 仓库检查脚本
-└── src/comfy_omni/           # 新的模块化 Python 包骨架
+├── src/comfy_omni/           # 新的模块化 Python 包骨架
+└── tests/                    # unit、contract、integration、packaging 和 host 测试层
 ```
 
-骨架旁的旧仓库和本地证据已被明确忽略，不属于公开的 ComfyOmni 仓库。
+旧仓库和本地证据保留在这个独立 Git 根之外，不属于公开的 ComfyOmni 仓库；只有通过审计迁移后，
+相关内容才可以进入本仓库。
 
 <!-- README_SYNC: development -->
 ## 开发

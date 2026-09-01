@@ -13,6 +13,7 @@ SECTION_RE = re.compile(r"<!-- README_SYNC: ([a-z0-9_-]+) -->")
 MILESTONE_RE = re.compile(r"^\| (M\d+) \|", re.MULTILINE)
 REQUIRED_SECTIONS = (
     "overview",
+    "naming",
     "status",
     "goals",
     "architecture",
