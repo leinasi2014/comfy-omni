@@ -1,13 +1,13 @@
 # ComfyOmni contributor instructions
 
-This file governs the ComfyOmni workspace rooted at this `plugins/` directory. A more specific
-`AGENTS.md` inside a nested repository takes precedence for that repository. Existing sibling
-repositories and local evidence directories are migration inputs, not part of the new package
-unless a reviewed migration explicitly moves them.
+This file governs the independent ComfyOmni repository rooted at the directory containing this
+file. Legacy plugin repositories and local evidence are siblings outside this Git root; they are
+migration inputs, not part of the new package unless a reviewed migration explicitly imports them.
 
 ## Project identity
 
 - Project: `ComfyOmni`
+- GitHub repository: `comfy-omni`
 - PyPI distribution: `comfy-omni`
 - Python package: `comfy_omni`
 - CLI: `comfy-omni`
