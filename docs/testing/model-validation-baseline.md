@@ -32,13 +32,32 @@
 仓库、revision、下载页面、许可证状态和测试参数以 JSON 为准。固定文件名中的 `int8_convrot` 只是
 来源声明，不替代 ComfyOmni 对 safetensors header、tensor schema 和量化 metadata 的独立检查。
 
+### 2.1 文本编码器源文件的格式例外
+
+指定验证主机对 `text-encoder` 的完整字节数和 SHA256 做 E1 校验后发现：源文件的 safetensors
+header 索引覆盖到数据区末尾之前 72 字节，末尾存在一个来源侧附加标记。该源文件因此不满足
+[官方 safetensors 格式规范](https://github.com/huggingface/safetensors#format)中“整个数据区必须被索引
+且不能有空洞”的要求。ComfyOmni 的 strict reader 必须继续以
+`safetensors-unindexed-trailing-bytes` 拒绝它，不能用文件名、来源可信度或通用“忽略尾部”开关绕过。
+
+后续 staging 切片必须保留原文件和原 SHA256，只能通过 digest-pinned profile 原子生成新的规范化
+副本。receipt 至少绑定原 SHA256、原字节数、被移除尾部的字节数与 SHA256、派生文件字节数、派生
+SHA256 和工具 commit；派生文件必须重新通过同一个 strict reader。派生 SHA256 尚未冻结前，文本
+编码器不得进入 package-load 或 prompt-encoding 验收。此例外不是运行时支持声明，也不能扩展成对
+任意尾部数据的容忍。
+
+本发现绑定 ComfyOmni commit `71488775c17888ba81210b2cf1ba5bc4e52eb52d`、表中源文件字节数与
+SHA256，以及 JSON 中的 header/索引/尾部摘要。strict reader 在结构检查阶段即拒绝，因此这次运行
+没有产生 text-encoder 组件识别、NVFP4 识别或运行时可加载的结论。
+
 ## 3. 验收场景
 
 ### 3.1 资产身份
 
 任何检查、转换或加载前都必须验证逻辑大小与 SHA256。下载使用 `.partial` 和原子改名；缺失、超长、
-摘要不符或来源未绑定时立即失败。运行证据必须记录 ComfyOmni commit、宿主 adapter 版本、容器或
-wheel 身份，以及全部参与资产的 SHA256。
+摘要不符或来源未绑定时立即失败。源文件通过 E1 后仍须独立通过格式检查；非规范源文件必须隔离，
+不得直接加载。运行证据必须记录 ComfyOmni commit、宿主 adapter 版本、容器或 wheel 身份，以及
+全部参与源资产与派生资产的 SHA256。
 
 ### 3.2 主运行时冒烟
 

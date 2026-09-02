@@ -40,6 +40,21 @@
       "source_binding": "modelscope-x-linked-etag-sha256",
       "license": "upstream-review-required-before-public-evidence",
       "risk_flags": [],
+      "format_conformance": {
+        "status": "nonconformant",
+        "reason_code": "safetensors-unindexed-trailing-bytes",
+        "observed_header_bytes": 217976,
+        "indexed_payload_bytes": 15682911603,
+        "trailing_bytes": 72,
+        "trailing_sha256": "8bbc743f1fdc67acb6b09c977485e7d8bed7ff073a12d70865e0e4b793ed8e75"
+      },
+      "staging_policy": {
+        "action": "derive-strict-safetensors-copy",
+        "in_place_mutation": false,
+        "generic_trailing_tolerance": false,
+        "expected_derived_bytes": 15683129587,
+        "expected_derived_sha256": null
+      },
       "validation_uses": [
         "inspection",
         "package-load",
@@ -166,7 +181,7 @@
         "realism-people-lora",
         "hot-swap-dit"
       ],
-      "required_outcome": "Every payload matches its pinned byte size and SHA256 before inspection or load."
+      "required_outcome": "Every source payload matches its pinned byte size and SHA256 before inspection or load; nonconformant source bytes remain quarantined and any normalized derivative receives a separate digest-bound identity."
     },
     {
       "id": "primary-runtime-smoke",

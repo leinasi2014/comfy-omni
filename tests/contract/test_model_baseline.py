@@ -120,6 +120,31 @@ def test_model_baseline_sources_are_explicit_and_content_bound() -> None:
         observed_filenames.add(filename)
 
 
+def test_nonconformant_text_encoder_requires_digest_bound_normalization() -> None:
+    assets = _load_baseline()["assets"]
+    assert isinstance(assets, list)
+    text_encoder = next(asset for asset in assets if asset["id"] == "text-encoder")
+
+    conformance = text_encoder["format_conformance"]
+    assert conformance == {
+        "status": "nonconformant",
+        "reason_code": "safetensors-unindexed-trailing-bytes",
+        "observed_header_bytes": 217_976,
+        "indexed_payload_bytes": 15_682_911_603,
+        "trailing_bytes": 72,
+        "trailing_sha256": "8bbc743f1fdc67acb6b09c977485e7d8bed7ff073a12d70865e0e4b793ed8e75",
+    }
+
+    staging = text_encoder["staging_policy"]
+    assert staging == {
+        "action": "derive-strict-safetensors-copy",
+        "in_place_mutation": False,
+        "generic_trailing_tolerance": False,
+        "expected_derived_bytes": 15_683_129_587,
+        "expected_derived_sha256": None,
+    }
+
+
 def test_model_baseline_scenarios_reference_only_pinned_assets() -> None:
     baseline = _load_baseline()
     assets = baseline["assets"]
