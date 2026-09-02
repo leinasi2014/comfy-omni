@@ -7,3 +7,4 @@ media belong in release storage and must be referenced by immutable digest.
 - [ConvRot numerical backend acceptance (`b0b757a696d9`)](convrot-numerics-b0b757a696d9.md)
 - [ConvRot native-export transaction acceptance (`1a8ce636aa06`)](convrot-transaction-1a8ce636aa06.md)
 - [ConvRot bounded payload-producer acceptance (`1b2324ada243`)](convrot-payload-producers-1b2324ada243.md)
+- [Complete Ref2VA native-export acceptance (`25ceccdd5468`)](ref2va-full-conversion-25ceccdd5468.md)
