@@ -11,11 +11,14 @@ from comfy_omni.contracts.models import ArchitectureTemplate, ContractCatalog, C
 from comfy_omni.contracts.templates import ARCHITECTURE_TEMPLATES
 from comfy_omni.conversion.contract_workflows.census import CensusEngine
 from comfy_omni.conversion.exporters.models import NativeExportPlan
+from comfy_omni.conversion.exporters.execution import execute_native_export
 from comfy_omni.conversion.exporters.planning import (
     DEFAULT_MAX_ROWS,
     DEFAULT_MAX_SHARD_BYTES,
     build_native_export_plan,
 )
+from comfy_omni.conversion.packaging.native_export import NativeExportPublication
+from comfy_omni.domain.normalization import ToolIdentity
 
 
 def plan_native_export(
@@ -50,4 +53,38 @@ def plan_native_export(
     )
 
 
-__all__ = ["plan_native_export"]
+def convert_native_export(
+    sources: Sequence[Path | str],
+    output_dir: Path | str,
+    *,
+    tool: ToolIdentity,
+    component: str = "transformer",
+    source_profile: str | None = None,
+    profile_name: str = PROFILE_DENSE_BF16_ONLINE_INT8,
+    max_rows: int = DEFAULT_MAX_ROWS,
+    max_shard_bytes: int = DEFAULT_MAX_SHARD_BYTES,
+    catalog: ContractCatalog | None = None,
+    templates: Mapping[str, ArchitectureTemplate] = ARCHITECTURE_TEMPLATES,
+    source_contract_snapshot: Path | None = None,
+) -> NativeExportPublication:
+    """Plan and execute one explicit source through the immutable export transaction."""
+
+    plan = plan_native_export(
+        sources,
+        component=component,
+        source_profile=source_profile,
+        profile_name=profile_name,
+        max_rows=max_rows,
+        max_shard_bytes=max_shard_bytes,
+        catalog=catalog,
+        templates=templates,
+    )
+    return execute_native_export(
+        plan,
+        Path(output_dir),
+        tool=tool,
+        source_contract_snapshot=source_contract_snapshot,
+    )
+
+
+__all__ = ["convert_native_export", "plan_native_export"]

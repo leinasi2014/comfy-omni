@@ -49,6 +49,7 @@ EXPECTED_INTERNAL_PREFIXES = {
         "comfy_omni.application",
         "comfy_omni.contracts",
         "comfy_omni.conversion",
+        "comfy_omni.domain",
     ),
 }
 FORBIDDEN_OPTIONAL_IMPORTS = ("torch", "vllm", "vllm_omni")
