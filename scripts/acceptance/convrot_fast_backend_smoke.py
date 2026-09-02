@@ -48,9 +48,7 @@ def main() -> int:
         weight = torch.randint(-128, 128, (5, group_size * 2), dtype=torch.int8)
         scale = torch.rand((5, 1), dtype=torch.float32).add_(0.01)
         dense = inverse_convrot_rows(weight, scale, group_size=group_size)
-        fast = fast_inverse_convrot_rows(
-            weight.to(device=device), scale.to(device=device), group_size=group_size
-        ).cpu()
+        fast = fast_inverse_convrot_rows(weight.to(device=device), scale.to(device=device), group_size=group_size).cpu()
         maximum_error = float(torch.max(torch.abs(dense - fast)).item())
         if not bool(torch.allclose(dense, fast, rtol=1e-5, atol=1e-5)):
             _fail(f"fast transform disagrees with dense oracle for group size {group_size}: {maximum_error}")
