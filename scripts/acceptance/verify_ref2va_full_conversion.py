@@ -135,10 +135,7 @@ def _safetensors(path: Path) -> tuple[dict[str, dict[str, Any]], int]:
         _require(isinstance(record, dict), f"invalid tensor record: {name}")
         dtype, shape, offsets = record.get("dtype"), record.get("shape"), record.get("data_offsets")
         _require(
-            isinstance(dtype, str)
-            and isinstance(shape, list)
-            and isinstance(offsets, list)
-            and len(offsets) == 2,
+            isinstance(dtype, str) and isinstance(shape, list) and isinstance(offsets, list) and len(offsets) == 2,
             f"incomplete tensor record: {name}",
         )
         start, end = offsets
@@ -216,8 +213,7 @@ def _hash_reordered_rows(path: Path, offset: int, row_bytes: int, indices: tuple
 def _bf16_values(payload: bytes) -> tuple[float, ...]:
     _require(len(payload) % 2 == 0, "misaligned BF16 payload")
     return tuple(
-        struct.unpack("<f", struct.pack("<I", value << 16))[0]
-        for (value,) in struct.iter_unpack("<H", payload)
+        struct.unpack("<f", struct.pack("<I", value << 16))[0] for (value,) in struct.iter_unpack("<H", payload)
     )
 
 
@@ -321,9 +317,7 @@ def _verify_semantics(
                     _require(math.isfinite(scale) and scale > 0, f"invalid sampled scale: {source_name}")
                     signed = struct.unpack(f"<{columns}b", qweight)
                     expected = _regular_hadamard(tuple(value * scale for value in signed), group_size)
-                    actual = _bf16_values(
-                        _read_at(output_stream, output_start + target_row * columns * 2, columns * 2)
-                    )
+                    actual = _bf16_values(_read_at(output_stream, output_start + target_row * columns * 2, columns * 2))
                     for expected_value, actual_value in zip(expected, actual, strict=True):
                         absolute = abs(actual_value - expected_value)
                         relative = absolute / max(abs(expected_value), 1e-12)
@@ -402,9 +396,7 @@ def _verify(args: argparse.Namespace) -> dict[str, Any]:
     _require(len(plan["actions"]) == 932 and dict(operations) == EXPECTED_OPERATIONS, "operation census drift")
     _require(len(plan["shards"]) == 10, "shard count drift")
     _require(sum(item["payload_bytes"] for item in plan["shards"]) == TARGET_PAYLOAD_BYTES, "shard bytes drift")
-    _require(
-        plan["target"] == {"payload_bytes": TARGET_PAYLOAD_BYTES, "tensor_count": 532}, "plan target drift"
-    )
+    _require(plan["target"] == {"payload_bytes": TARGET_PAYLOAD_BYTES, "tensor_count": 532}, "plan target drift")
     indices = _qkv_indices(plan["qkv_layout"])
     _require(len(indices) == plan["qkv_layout"]["row_count"] == 21_504, "QKV row-count drift")
     _require(tuple(sorted(indices)) == tuple(range(len(indices))), "QKV mapping is not a permutation")
