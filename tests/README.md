@@ -1,5 +1,9 @@
 # Test layout
 
+All lanes execute through the repository Docker targets described in
+[`docs/development/docker-first.md`](../docs/development/docker-first.md). A host Python environment
+is not a test lane.
+
 - `unit/`: standard-library or isolated dependency tests; no network, host, or GPU.
 - `contract/`: schemas, manifests, mapping packs, receipts, and compatibility fixtures.
 - `integration/`: CLI, API, plugin host stubs, subprocesses, and cross-module flows.

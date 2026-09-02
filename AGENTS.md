@@ -8,8 +8,8 @@ migration inputs, not part of the new package unless a reviewed migration explic
 
 - Live tasks: [GitHub Issues](https://github.com/leinasi2014/comfy-omni/issues).
 - Integration target: protected `main`; deliver changes through a short-lived branch and pull request.
-- Trusted checks: the commands under “Tests and quality gates”; runtime acceptance runs only on its
-  declared server against an identified candidate.
+- Trusted checks: the Docker commands under “Tests and quality gates”; runtime acceptance runs only
+  in Docker on its declared server against an identified candidate.
 - Definition of Done: behavior is present on `main`, affected automated and representative server
   checks pass, public contracts and documentation are current, and limitations are explicit.
 - Architecture contract and TDD: freeze the boundary in the live issue; executable behavior normally
@@ -37,6 +37,7 @@ integration inherited from `h3-forge`.
 
 1. Read `docs/post-merge-refactoring-plan.md` and the nearest applicable `AGENTS.md`. For checkpoint,
    conversion, LoRA, runtime, or host work, also read `docs/testing/model-validation-baseline.md`.
+   Before executing any project command, read `docs/development/docker-first.md`.
 2. Classify the change as `core`, `domain`, `artifact I/O`, `contract`, `conversion`, `runtime`,
    `application`, `integration`, `API`, `CLI`, `validation`, packaging, or documentation.
 3. List affected public contracts: Python imports, CLI, entry points, HTTP paths, environment
@@ -48,6 +49,26 @@ integration inherited from `h3-forge`.
 
 Do not edit or delete sibling repositories, archives, worktrees, model artifacts, evidence, build
 outputs, or dirty/untracked files unless the task explicitly names them.
+
+## Docker-first execution boundary
+
+`DOCKER_FIRST_POLICY: v1`
+
+Docker is the mandatory default for development commands, tests, linting, builds, packaging,
+checkpoint inspection and conversion, downloads, generation, CI, and server acceptance. The
+authoritative policy, host allowlist, exception protocol, mount rules, and evidence contract are in
+`docs/development/docker-first.md`.
+
+- Hosts may edit/inspect files and use Git/GitHub, Docker/Compose, SSH/SCP, and read-only diagnostics
+  needed to establish the container boundary.
+- Do not install or run project Python, `pip`, `uv`, Conda, pytest, Ruff, Twine, Torch, vLLM,
+  conversion, downloads, or inference on a developer or server host.
+- A missing or broken image is a failed/unavailable Docker gate, never permission to fall back to a
+  host virtual environment or system package manager.
+- Any truly unavoidable host exception is recorded in the live Issue or PR before execution with
+  its exact command, writes, rollback, and result. It never permits running ComfyOmni on the host.
+- Checkpoints and models are mounted read-only. Outputs and evidence use a separate bounded writable
+  mount or volume. Workload containers are non-root, least-privilege, and offline by default.
 
 ## Required architecture
 
@@ -162,23 +183,25 @@ mutable registries, FastAPI routers, host subclasses, or test seams through `com
 Every bug fix starts with a failing regression test. Wire, schema, path, and publication changes
 cover positive cases plus malformed, missing, duplicate, tampered, collision, and interrupted cases.
 
-As the corresponding tooling lands, the authoritative local checks are:
+As the corresponding tooling lands, the authoritative checks are the repository Docker targets:
 
 ```bash
-python -m ruff format --check src tests scripts deploy
-python -m ruff check src tests scripts deploy
-python -m pytest -q --strict-markers
-python scripts/check_release.py
+./scripts/docker.sh docs 3.13
+./scripts/docker.sh quality 3.10
+./scripts/docker.sh quality 3.13
+./scripts/docker.sh package 3.12
 ```
 
-`check_release.py` must build in an empty temporary directory, run metadata checks, rebuild a wheel
-from the sdist, install wheels into clean environments, and validate CLI, imports, entry points,
-licenses, and package resources. It must not consume or delete old repository `dist/` or `build/`
-contents.
+On Windows, use the equivalent `scripts/docker.ps1` actions. `check_release.py`, when it lands, must
+run inside the package container, build in an empty temporary directory, run metadata checks,
+rebuild a wheel from the sdist, install wheels into clean environments, and validate CLI, imports,
+entry points, licenses, and package resources. It must not consume or delete old repository `dist/`
+or `build/` contents.
 
-Missing Ruff, pytest, build, twine, or a required test dependency is a failed gate, not
-`NOT_CONFIGURED`. GPU and pinned-host acceptance run in their declared environments and remain
-bound to the exact source commit and artifact digests.
+Missing Docker, Ruff, pytest, build, Twine, or a required test dependency is a failed or unavailable
+gate, not `NOT_CONFIGURED` and not authorization for a host install. GPU and pinned-host acceptance
+run in declared containers and remain bound to the exact source commit, image digest, and artifact
+digests.
 
 Ordinary CI validates the model-baseline contract but never downloads model payloads. A host run
 must verify exact byte size and SHA256 before inspection or load. Asset presence, a single-model
@@ -230,7 +253,7 @@ compatibility, contribution links, or license wording must update both files in 
 pull request. Keep their `README_SYNC` section keys and milestone IDs in the same order, and run:
 
 ```bash
-python scripts/check_readme_sync.py
+./scripts/docker.sh docs 3.13
 ```
 
 Pure grammar fixes may differ in wording, but neither language may advertise a capability, status,

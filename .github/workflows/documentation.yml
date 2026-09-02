@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   readme-sync:
+    name: Docker / documentation contracts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -17,8 +18,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate README structure
-        run: python scripts/check_readme_sync.py
+      - name: Validate documentation contracts in Docker
+        run: ./scripts/docker.sh docs 3.13
 
       - name: Require bilingual README updates in pull requests
         if: github.event_name == 'pull_request'

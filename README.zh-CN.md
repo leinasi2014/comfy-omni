@@ -113,6 +113,7 @@ CLI / HTTP API / runtime integrations
 .
 ├── AGENTS.md                 # 架构、编码、测试和 Git 规范
 ├── CONTRIBUTING.md           # 贡献与 Pull Request 流程
+├── Dockerfile                # 开发、质量、打包与 CLI 镜像目标
 ├── pyproject.toml             # distribution 元数据、CLI、插件入口和工具配置
 ├── README.md                 # 英文项目简介
 ├── README.zh-CN.md           # 简体中文项目简介
@@ -128,27 +129,36 @@ CLI / HTTP API / runtime integrations
 <!-- README_SYNC: development -->
 ## 开发
 
+`DOCKER_FIRST_POLICY: v1`
+
 修改代码前请依次阅读：
 
 1. [`AGENTS.md`](AGENTS.md)
 2. [`CONTRIBUTING.md`](CONTRIBUTING.md)
 3. [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
+4. [`docs/development/docker-first.md`](docs/development/docker-first.md)
 
-当前 walking skeleton 可以按开发模式安装：
+Docker 是唯一权威执行边界。禁止在宿主机安装 ComfyOmni、Python 依赖或模型／运行时依赖。宿主机只
+负责文件编辑、Git／GitHub、Docker／Compose、SSH／SCP，以及维持容器边界所需的诊断。仓库门与当前
+CLI 统一通过包装脚本执行：
 
 ```bash
-python -m pip install -e ".[dev]"
-comfy-omni --help
-comfy-omni --version
-comfy-omni inspect CHECKPOINT.safetensors --json
-comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
+./scripts/docker.sh docs 3.13
+./scripts/docker.sh quality 3.10
+./scripts/docker.sh quality 3.13
+./scripts/docker.sh package 3.12
+./scripts/docker.sh cli 3.13 --help
 ```
+
+PowerShell 用户使用 `scripts/docker.ps1` 的同名 action。模型／checkpoint 命令必须使用构建好的镜像，
+显式只读挂载输入，并单独挂载有边界的输出／证据目录，具体规则见 Docker-first 规范。本地没有 Docker
+只代表本地门不可用，不允许回退到宿主 Python；仍必须取得可信 CI 与指定服务器 Docker 证据。
 
 目前提供项目身份、严格的 header-only inspection，以及
 [`docs/migration/text-encoder-normalization.md`](docs/migration/text-encoder-normalization.md) 中记录的唯一
 精确规范化 profile；它不会加载 tensor，也尚未提供通用旧转换／运行时命令。快速、确定性的仓库检查
-会随里程碑在本地和 CI 执行；GPU 与运行时验收只在指定服务器针对摘要绑定资产运行。延后、缺失或
-目标不同的检查都不能伪装成通过。
+会随里程碑在本地和 CI 的 Docker 中执行；GPU 与运行时验收只在指定服务器的 Docker 中针对摘要绑定
+资产运行。延后、缺失或目标不同的检查都不能伪装成通过。
 
 <!-- README_SYNC: contributing -->
 ## 参与贡献
