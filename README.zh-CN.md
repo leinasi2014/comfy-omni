@@ -43,10 +43,13 @@ import package 应当是合法标识符。GitHub 可能把只有一个子目录�
 <!-- README_SYNC: status -->
 ## 项目状态
 
-**早期重构／仓库基础建设阶段。** 当前仓库只包含已审查的架构骨架、开发规范和重构方案，尚未提供
-可安装的 `comfy-omni` 版本或可用 CLI。当前骨架不能作为生产运行时或兼容性声明使用。
+**早期重构／walking skeleton 阶段。** 当前仓库已经具备可安装的 distribution 元数据、轻量包导入、
+只提供身份能力的 `comfy-omni` CLI（`--help` 与 `--version`），以及一个空的幂等插件入口。目前尚未
+迁移任何转换命令、HTTP API、运行时架构或宿主 patch；这个 walking skeleton 不能作为生产运行时或
+兼容性声明使用。
 
 现有 H3 实现暂时保留在旧工作区；代码只有在完成来源、许可证、合同、测试和模块归属审计后才会迁移。
+服务器验证目前明确延后；在取得服务器证据前，当前候选不能视为已验收或可发布。
 
 <!-- README_SYNC: goals -->
 ## 设计目标
@@ -103,11 +106,12 @@ CLI / HTTP API / runtime integrations
 .
 ├── AGENTS.md                 # 架构、编码、测试和 Git 规范
 ├── CONTRIBUTING.md           # 贡献与 Pull Request 流程
+├── pyproject.toml             # distribution 元数据、CLI、插件入口和工具配置
 ├── README.md                 # 英文项目简介
 ├── README.zh-CN.md           # 简体中文项目简介
 ├── docs/                     # 设计文档、ADR 和公开证据索引
 ├── scripts/                  # 仓库检查脚本
-├── src/comfy_omni/           # 新的模块化 Python 包骨架
+├── src/comfy_omni/           # 新的模块化 Python 包
 └── tests/                    # unit、contract、integration、packaging 和 host 测试层
 ```
 
@@ -123,14 +127,17 @@ CLI / HTTP API / runtime integrations
 2. [`CONTRIBUTING.md`](CONTRIBUTING.md)
 3. [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
 
-仓库当前尚不可安装。在基础建设里程碑期间，可执行的文档检查为：
+当前 walking skeleton 可以按开发模式安装：
 
 ```bash
-python scripts/check_readme_sync.py
+python -m pip install -e ".[dev]"
+comfy-omni --help
+comfy-omni --version
 ```
 
-语言、lint、测试、打包和真实宿主门会随对应里程碑落地后成为强制检查。缺少必需工具属于失败，不能
-伪装成通过。
+目前只提供项目身份能力，尚未迁移旧命令。语言、lint、测试、打包和真实宿主门会随对应里程碑落地后
+成为强制检查。按当前维护者要求，本地测试延后，只有指定服务器运行才能形成验收证据；延后或缺失的
+检查不能伪装成通过。
 
 <!-- README_SYNC: contributing -->
 ## 参与贡献

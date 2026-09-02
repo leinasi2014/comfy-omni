@@ -45,13 +45,16 @@ and its distinction between
 <!-- README_SYNC: status -->
 ## Project status
 
-**Early refactoring / repository-foundation stage.** The repository currently contains the approved
-architecture skeleton, development rules, and refactoring plan. It does not yet provide an
-installable `comfy-omni` release or a functional CLI. Do not use current scaffolding as a production
-runtime or compatibility claim.
+**Early refactoring / walking-skeleton stage.** The repository now has installable distribution
+metadata, a lightweight package import, an identity-only `comfy-omni` CLI (`--help` and `--version`),
+and an empty idempotent plugin entry. No conversion command, HTTP API, runtime architecture, or host
+patch has migrated yet. Do not treat the walking skeleton as a production runtime or compatibility
+claim.
 
 The existing H3 implementation remains in the legacy workspace while code origin, licensing,
-contracts, tests, and module ownership are audited before migration.
+contracts, tests, and module ownership are audited before migration. Server verification is
+deliberately deferred and the current candidate is not accepted or releasable until that evidence
+exists.
 
 <!-- README_SYNC: goals -->
 ## Design goals
@@ -109,11 +112,12 @@ Detailed sequencing and exit criteria are maintained in the
 .
 ├── AGENTS.md                 # Architecture, coding, testing, and Git rules
 ├── CONTRIBUTING.md           # Contribution and pull-request workflow
+├── pyproject.toml             # Distribution metadata, CLI, plugin entry, and tool configuration
 ├── README.md                 # English project overview
 ├── README.zh-CN.md           # Simplified Chinese project overview
 ├── docs/                     # Design, ADRs, and public evidence indexes
 ├── scripts/                  # Repository checks
-├── src/comfy_omni/           # New modular Python package skeleton
+├── src/comfy_omni/           # New modular Python package
 └── tests/                    # Unit, contract, integration, packaging, and host lanes
 ```
 
@@ -129,15 +133,18 @@ Before making changes, read:
 2. [`CONTRIBUTING.md`](CONTRIBUTING.md)
 3. [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
 
-The repository is not installable yet. During the foundation milestone, the available documentation
-check is:
+The current walking skeleton can be installed for development:
 
 ```bash
-python scripts/check_readme_sync.py
+python -m pip install -e ".[dev]"
+comfy-omni --help
+comfy-omni --version
 ```
 
-Language, lint, test, package, and host gates will become mandatory as their corresponding milestone
-lands. Missing required tooling is a failure, not a fabricated pass.
+This exposes project identity only; it does not migrate legacy commands. Language, lint, test,
+package, and host gates become mandatory as their corresponding milestone lands. Per the current
+maintainer direction, local tests are deferred and only the designated server run can provide
+acceptance evidence. A deferred or missing check is not a pass.
 
 <!-- README_SYNC: contributing -->
 ## Contributing

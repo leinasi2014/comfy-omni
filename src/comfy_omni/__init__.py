@@ -1,5 +1,13 @@
 """Bring Comfy checkpoints to native Omni runtimes.
 
-The package is currently a refactoring skeleton. Public imports will be added only after their
-contracts and migration tests are approved.
+Only explicitly documented names are public. Importing this package is intentionally lightweight:
+it does not import conversion backends, HTTP frameworks, host runtimes, or model code.
 """
+
+from __future__ import annotations
+
+from ._version import distribution_version
+
+__version__ = distribution_version()
+
+__all__ = ["__version__"]

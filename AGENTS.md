@@ -4,6 +4,18 @@ This file governs the independent ComfyOmni repository rooted at the directory c
 file. Legacy plugin repositories and local evidence are siblings outside this Git root; they are
 migration inputs, not part of the new package unless a reviewed migration explicitly imports them.
 
+## Delivery
+
+- Live tasks: [GitHub Issues](https://github.com/leinasi2014/comfy-omni/issues).
+- Integration target: protected `main`; deliver changes through a short-lived branch and pull request.
+- Trusted checks: the commands under “Tests and quality gates”; runtime acceptance runs only on its
+  declared server against an identified candidate.
+- Definition of Done: behavior is present on `main`, affected automated and representative server
+  checks pass, public contracts and documentation are current, and limitations are explicit.
+- Architecture contract and TDD: freeze the boundary in the live issue; executable behavior normally
+  follows RED → GREEN → REFACTOR. A maintainer-approved deferred test must stay open and cannot be
+  represented as a pass.
+
 ## Project identity
 
 - Project: `ComfyOmni`
