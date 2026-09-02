@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from comfy_omni.domain.normalization import ToolIdentity
@@ -132,11 +133,44 @@ class PackageSourceVerification:
         }
 
 
+@dataclass(frozen=True)
+class PackageMaterialization:
+    """Identity-bound handle to one private, verified package staging tree."""
+
+    schema: str
+    plan_content_sha256: str
+    source_files_sha256: str
+    stage_dir: Path
+    output_dir: Path
+    stage_identity: tuple[int, int]
+    file_count: int
+    total_bytes: int
+    files_sha256: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "file_count": self.file_count,
+            "files_sha256": self.files_sha256,
+            "output_dir": self.output_dir.as_posix(),
+            "plan_content_sha256": self.plan_content_sha256,
+            "schema": self.schema,
+            "source_files_sha256": self.source_files_sha256,
+            "stage": {
+                "device": self.stage_identity[0],
+                "inode": self.stage_identity[1],
+                "path": self.stage_dir.as_posix(),
+            },
+            "status": "STAGED_VERIFIED",
+            "total_bytes": self.total_bytes,
+        }
+
+
 __all__ = [
     "ComponentFile",
     "ComponentReceipt",
     "NativePackagePlan",
     "PackageComponentPlan",
     "PackageFilePlan",
+    "PackageMaterialization",
     "PackageSourceVerification",
 ]
