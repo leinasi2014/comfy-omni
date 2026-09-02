@@ -19,6 +19,7 @@ from comfy_omni.artifacts.safetensors import (
     read_safetensors_header_stream,
 )
 from comfy_omni.conversion.inspection import inspect_safetensors
+from comfy_omni.domain.checkpoints import ArtifactInspection
 
 
 def _write_header(path: Path, header: dict[str, object], payload: bytes = b"") -> None:
@@ -92,6 +93,29 @@ def test_inspects_lora_and_comfy_quant_without_tensor_payload(tmp_path: Path) ->
     assert inspection.component == "lora"
     assert inspection.tensor_count == 1
     assert set(inspection.quantization) >= {"comfy_quant", "convrot", "int8"}
+
+
+def test_inspection_metadata_is_detached_immutable_and_serializes_as_a_copy() -> None:
+    source = {"model_type": "minimax-h3"}
+    inspection = ArtifactInspection(
+        path="checkpoint.safetensors",
+        component="transformer",
+        quantization=("int8",),
+        tensor_count=1,
+        metadata=source,
+        evidence=("header",),
+    )
+
+    source["model_type"] = "changed"
+    assert inspection.metadata["model_type"] == "minimax-h3"
+    with pytest.raises(TypeError):
+        inspection.metadata["model_type"] = "changed"  # type: ignore[index]
+
+    serialized = inspection.to_dict()
+    assert serialized["quantization"] == ("int8",)
+    assert serialized["evidence"] == ("header",)
+    serialized["metadata"]["model_type"] = "serialized-change"
+    assert inspection.metadata["model_type"] == "minimax-h3"
 
 
 def test_rejects_unsafe_header_length(tmp_path: Path) -> None:

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any
 
 
@@ -30,13 +31,25 @@ class ArtifactInspection:
     component: str
     quantization: tuple[str, ...]
     tensor_count: int
-    metadata: dict[str, str]
+    metadata: Mapping[str, str]
     evidence: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        """Detach and freeze caller-owned metadata."""
+
+        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
     def to_dict(self) -> dict[str, Any]:
         """Return the legacy-compatible JSON-ready representation."""
 
-        return asdict(self)
+        return {
+            "path": self.path,
+            "component": self.component,
+            "quantization": self.quantization,
+            "tensor_count": self.tensor_count,
+            "metadata": dict(self.metadata),
+            "evidence": self.evidence,
+        }
 
 
 def _contains_name_token(name: str, token: str) -> bool:
