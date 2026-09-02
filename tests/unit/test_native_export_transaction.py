@@ -242,9 +242,7 @@ def test_final_source_recheck_failure_cannot_publish_a_manifest(
     assert not (output / "manifest.json").exists()
 
 
-def test_publication_interruption_leaves_no_commit_marker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_publication_interruption_leaves_no_commit_marker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     execution = _execution()
     publication = importlib.import_module("comfy_omni.conversion.packaging.native_export")
     source = tmp_path / "source.safetensors"
