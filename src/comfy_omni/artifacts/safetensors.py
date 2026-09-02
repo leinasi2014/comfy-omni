@@ -46,6 +46,16 @@ DTYPE_BITS = {
 }
 
 
+class SafetensorsFormatError(ValueError):
+    """A fail-closed safetensors violation with a stable machine-facing reason code."""
+
+    def __init__(self, path: Path, reason_code: str, detail: str) -> None:
+        self.path = path
+        self.reason_code = reason_code
+        self.detail = detail
+        super().__init__(f"{reason_code}: {path}: {detail}")
+
+
 class _DuplicateKeyError(ValueError):
     pass
 
@@ -175,7 +185,11 @@ def _validate_contiguous_payload(path: Path, tensors: list[TensorDescriptor], pa
             raise ValueError(f"{path}: tensor {tensor.name!r} extends beyond end of file")
         cursor = end
     if cursor != payload_bytes:
-        raise ValueError(f"{path}: safetensors payload contains unindexed bytes")
+        raise SafetensorsFormatError(
+            path,
+            "safetensors-unindexed-trailing-bytes",
+            "safetensors payload contains unindexed bytes",
+        )
 
 
 def _decode_safetensors_header(
@@ -230,6 +244,7 @@ __all__ = [
     "MAX_JSON_INTEGER_DIGITS",
     "MAX_TENSOR_COUNT",
     "MAX_TENSOR_RANK",
+    "SafetensorsFormatError",
     "read_safetensors_header",
     "read_safetensors_header_stream",
 ]

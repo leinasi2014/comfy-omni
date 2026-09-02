@@ -31,7 +31,11 @@ Apache-2.0 legacy project and remains under ComfyOmni's Apache-2.0 distribution.
 
 The old `h3_forge.inspection` import path is not added as a compatibility shim. ComfyOmni has not
 published that Python import, and the approved public identity change uses `comfy_omni`. Stable CLI
-arguments, output fields, evidence strings, limits, dtype roster, and failure messages are preserved.
+arguments, output fields, evidence strings, limits, dtype roster, and failure meanings are preserved.
+After designated-server validation exposed a real source file with unindexed trailing bytes, the CLI
+boundary was hardened to return exit code `2` with the stable
+`safetensors-unindexed-trailing-bytes` reason instead of leaking a Python traceback. The underlying
+strict rejection and legacy diagnostic substring remain unchanged.
 
 ## Frozen behavior
 
@@ -43,6 +47,8 @@ arguments, output fields, evidence strings, limits, dtype roster, and failure me
 - dtype, rank, dimensions, shape/product and byte span must agree;
 - tensor offsets form one exact contiguous index over the payload, with no gaps, overlaps, or
   unindexed bytes;
+- unindexed trailing data fails closed with `safetensors-unindexed-trailing-bytes`; the CLI renders
+  the error on stderr and returns `2` without emitting partial JSON or a traceback;
 - the stream reader stops at the payload boundary and never reads tensor bytes;
 - H3 component and quantization classification uses structured evidence and rejects contradiction;
 - directory expansion is recursive and sorted; JSON/text representations retain the legacy shape.

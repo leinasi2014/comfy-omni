@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from comfy_omni.application.inspection import inspect_checkpoint_paths
@@ -19,7 +20,11 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
 def run(args: argparse.Namespace) -> int:
     """Run inspection and render either stable JSON or concise text."""
 
-    inspections = inspect_checkpoint_paths(args.paths)
+    try:
+        inspections = inspect_checkpoint_paths(args.paths)
+    except (OSError, ValueError) as exc:
+        print(f"comfy-omni inspect: error: {exc}", file=sys.stderr)
+        return 2
     payload = [inspection.to_dict() for inspection in inspections]
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))

@@ -64,3 +64,21 @@ def test_inspect_directory_recurses_in_sorted_order_and_renders_text(
         f"{first.resolve()}: unknown tensors=0 quant=unquantized-or-unspecified",
         f"{second.resolve()}: unknown tensors=0 quant=unquantized-or-unspecified",
     ]
+
+
+def test_inspect_rejects_unindexed_trailing_bytes_without_a_traceback(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    checkpoint = tmp_path / "transport-marked.safetensors"
+    _write_safetensors(
+        checkpoint,
+        {"weight": _tensor("U8", [1], 0, 1)},
+        b"\0\ntransport-marker\n",
+    )
+
+    assert main(["inspect", str(checkpoint), "--json"]) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "safetensors-unindexed-trailing-bytes" in captured.err
+    assert "Traceback" not in captured.err
