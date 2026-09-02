@@ -108,8 +108,8 @@ def _verify(args: argparse.Namespace) -> dict[str, Any]:
     if claimed_manifest != result["manifest_sha256"] or manifest["status"] != "COMMITTED":
         raise ValueError("manifest receipt identity/status mismatch")
     if manifest["tool"] != {
-        "commit": args.expected_commit,
         "distribution": "comfy-omni",
+        "source_commit": args.expected_commit,
         "version": "0.2.0a1",
         "wheel_sha256": args.expected_wheel_sha256,
     }:

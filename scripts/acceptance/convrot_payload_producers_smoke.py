@@ -10,8 +10,8 @@ import struct
 from dataclasses import replace
 from pathlib import Path
 
-from comfy_omni import __version__
 from comfy_omni.artifacts import fileops
+from comfy_omni.artifacts.build_identity import installed_tool_identity
 from comfy_omni.conversion.exporters.execution import execute_native_export
 from comfy_omni.conversion.exporters.models import (
     NativeExportPlan,
@@ -29,7 +29,6 @@ from comfy_omni.conversion.exporters.planning import (
     OP_OMIT_SCALE,
     PLAN_SCHEMA,
 )
-from comfy_omni.domain.normalization import ToolIdentity
 from comfy_omni.domain.qkv import qkv_to_grouped_row_indices
 
 QKV_PREFIX = "blocks.0.attn.qkv_proj"
@@ -164,10 +163,13 @@ def _plan(source: Path) -> NativeExportPlan:
 def _run(source: Path, output: Path, result: Path, commit: str, wheel_sha256: str) -> None:
     plan = _plan(source)
     output.parent.mkdir(parents=True, exist_ok=True)
+    tool = installed_tool_identity()
+    if tool.source_commit != commit or tool.wheel_sha256 != wheel_sha256:
+        raise RuntimeError("installed wheel identity disagrees with the acceptance candidate")
     publication = execute_native_export(
         plan,
         output,
-        tool=ToolIdentity("comfy-omni", __version__, commit, wheel_sha256),
+        tool=tool,
     )
     import torch
 
@@ -177,7 +179,7 @@ def _run(source: Path, output: Path, result: Path, commit: str, wheel_sha256: st
         if path.is_file()
     }
     payload = {
-        "candidate_commit": commit,
+        "candidate_commit": tool.source_commit,
         "manifest_sha256": publication.manifest_sha256,
         "output_files": files,
         "plan_content_sha256": plan.content_sha256,
@@ -185,7 +187,7 @@ def _run(source: Path, output: Path, result: Path, commit: str, wheel_sha256: st
         "source_sha256": plan.source_files[0].sha256,
         "status": "EXECUTED",
         "torch_version": torch.__version__,
-        "wheel_sha256": wheel_sha256,
+        "wheel_sha256": tool.wheel_sha256,
     }
     result.parent.mkdir(parents=True, exist_ok=True)
     result.write_bytes(fileops.canonical_json(payload))
