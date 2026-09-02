@@ -4,3 +4,4 @@ Only sanitized, reproducible, license-cleared evidence indexes belong here. Larg
 media belong in release storage and must be referenced by immutable digest.
 
 - [ConvRot native-export plan acceptance (`ed08abbe2df5`)](convrot-plan-ed08abbe2df5.md)
+- [ConvRot numerical backend acceptance (`b0b757a696d9`)](convrot-numerics-b0b757a696d9.md)

@@ -66,6 +66,9 @@ partitioning, lazy-import failure, and architecture boundaries without downloadi
 production Torch adapter must additionally pass CPU and CUDA comparisons against the reference
 oracle in the designated-server `numerics-runtime` container.
 
+The bounded CPU/CUDA acceptance for candidate `b0b757a696d9` is recorded in
+[`docs/evidence/convrot-numerics-b0b757a696d9.md`](../evidence/convrot-numerics-b0b757a696d9.md).
+
 ## Remaining issue #8 work
 
 The next slice may consume this backend from a held-descriptor payload reader and transactional
