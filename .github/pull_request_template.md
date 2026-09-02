@@ -25,7 +25,8 @@
 ## Documentation and provenance
 
 - [ ] `README.md` and `README.zh-CN.md` were updated together, or neither needed an update
-- [ ] `python scripts/check_readme_sync.py` passes
+- [ ] `./scripts/docker.sh docs 3.13` passes
+- [ ] No project command or dependency was executed/installed on the host; any approved exception is documented
 - [ ] Documentation/ADR impact is addressed
 - [ ] New or migrated code/assets have source, license, and attribution disposition
 

@@ -124,6 +124,7 @@ stored in this repository or downloaded by ordinary CI.
 .
 ├── AGENTS.md                 # Architecture, coding, testing, and Git rules
 ├── CONTRIBUTING.md           # Contribution and pull-request workflow
+├── Dockerfile                # Development, quality, package, and CLI image targets
 ├── pyproject.toml             # Distribution metadata, CLI, plugin entry, and tool configuration
 ├── README.md                 # English project overview
 ├── README.zh-CN.md           # Simplified Chinese project overview
@@ -139,18 +140,38 @@ of the public ComfyOmni repository and may enter it only through an audited migr
 <!-- README_SYNC: development -->
 ## Development
 
+`DOCKER_FIRST_POLICY: v1`
+
 Before making changes, read:
 
 1. [`AGENTS.md`](AGENTS.md)
 2. [`CONTRIBUTING.md`](CONTRIBUTING.md)
 3. [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
+4. [`docs/development/docker-first.md`](docs/development/docker-first.md)
 
-The current walking skeleton can be installed for development:
+Docker is the authoritative execution boundary. Do not install ComfyOmni, Python dependencies, or
+model/runtime dependencies on the host. The host is limited to editing, Git/GitHub, Docker/Compose,
+SSH/SCP, and diagnostics required to operate the container boundary. Run repository gates and the
+current CLI through the provided wrapper:
 
 ```bash
-python -m pip install -e ".[dev]"
-comfy-omni --help
-comfy-omni --version
+./scripts/docker.sh docs 3.13
+./scripts/docker.sh quality 3.10
+./scripts/docker.sh quality 3.13
+./scripts/docker.sh package 3.12
+./scripts/docker.sh cli 3.13 --help
+```
+
+PowerShell users use `scripts/docker.ps1` with the same actions. Model/checkpoint commands use the
+built image with explicit read-only input mounts and a separate bounded output/evidence mount, as
+defined by the Docker-first policy. Missing local Docker is an unavailable local gate, not
+permission to fall back to host Python; trusted CI and designated-server Docker evidence remain
+required.
+
+After the required mounts are declared, these are commands *inside* the container, never host-shell
+installation or execution instructions:
+
+```text
 comfy-omni inspect CHECKPOINT.safetensors --json
 comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
 comfy-omni contract scan SOURCE.safetensors --json
@@ -166,9 +187,9 @@ This exposes project identity, strict header-only inspection, the
 commands hash source files but do not materialize tensor payloads or import Torch/vLLM. External
 contracts are visible only when a caller passes a store explicitly; the legacy environment variable
 is read only by the CLI compatibility boundary. General legacy conversion/runtime commands remain
-unavailable. Fast deterministic repository checks run locally and in CI; GPU and runtime acceptance
-runs only on the designated server against digest-bound assets. A deferred, missing, or differently
-targeted check is not a pass.
+unavailable. Fast deterministic repository checks run in Docker locally and in CI; GPU and runtime
+acceptance runs only in Docker on the designated server against digest-bound assets. A deferred,
+missing, or differently targeted check is not a pass.
 
 <!-- README_SYNC: contributing -->
 ## Contributing

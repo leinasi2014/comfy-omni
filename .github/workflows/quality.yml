@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   quality:
-    name: Python ${{ matrix.python-version }}
+    name: Docker / Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -21,25 +21,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-
-      - name: Install development dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
-
-      - name: Check formatting
-        run: python -m ruff format --check src tests scripts
-
-      - name: Lint
-        run: python -m ruff check src tests scripts
-
-      - name: Run tests
-        run: python -m pytest -q --strict-markers
-
-      - name: Validate bilingual README contract
-        run: python scripts/check_readme_sync.py
+      - name: Run quality gates in Docker
+        run: ./scripts/docker.sh quality "${{ matrix.python-version }}"
 
       - name: Reject tracked model weights
         shell: bash
@@ -51,70 +34,12 @@ jobs:
           fi
 
   package:
-    name: Build and installed-wheel smoke test
+    name: Docker / package and installed-wheel smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Build distributions
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install build twine
-          python -m build --outdir "$RUNNER_TEMP/dist"
-          python -m twine check "$RUNNER_TEMP"/dist/*
-
-      - name: Install wheel in a clean environment
-        shell: bash
-        run: |
-          python -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
-
-      - name: Validate installed CLI, package, and plugin entry point
-        shell: bash
-        run: |
-          python_bin="$RUNNER_TEMP/venv/bin/python"
-          cli_bin="$RUNNER_TEMP/venv/bin/comfy-omni"
-          "$cli_bin" --help
-          "$cli_bin" --version
-          "$cli_bin" contract list --json
-          "$python_bin" - <<'PY'
-          import importlib.metadata
-          import json
-          import struct
-          import subprocess
-          import sys
-          import tempfile
-          from pathlib import Path
-
-          import comfy_omni
-          import comfy_omni.plugin
-          from comfy_omni.artifacts.build_identity import installed_tool_identity
-          from comfy_omni.contracts import ARCHITECTURE_TEMPLATES, COMPILE_TIME_CATALOG
-
-          entry_points = importlib.metadata.entry_points(group="vllm_omni.general_plugins")
-          assert any(entry_point.name == "comfy_omni" for entry_point in entry_points)
-          tool_identity = installed_tool_identity()
-          assert tool_identity.distribution == "comfy-omni"
-          assert len(tool_identity.source_commit) == 40
-          assert len(tool_identity.wheel_sha256) == 64
-          assert len(ARCHITECTURE_TEMPLATES) == 4
-          assert len(COMPILE_TIME_CATALOG.records) == 3
-          assert "torch" not in sys.modules
-          assert "vllm" not in sys.modules
-
-          with tempfile.TemporaryDirectory() as directory:
-              checkpoint = Path(directory) / "empty.safetensors"
-              header = json.dumps({}).encode("utf-8")
-              checkpoint.write_bytes(struct.pack("<Q", len(header)) + header)
-              subprocess.run(
-                  [str(Path(sys.executable).with_name("comfy-omni")), "inspect", str(checkpoint), "--json"],
-                  check=True,
-              )
-          PY
+      - name: Build and verify distributions in Docker
+        run: ./scripts/docker.sh package 3.12

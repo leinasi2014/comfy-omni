@@ -7,7 +7,28 @@ small, reviewable changes and explicit compatibility decisions matter more than 
 
 - [`AGENTS.md`](AGENTS.md)
 - [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
+- [`docs/development/docker-first.md`](docs/development/docker-first.md)
 - The nearest nested `AGENTS.md` for any legacy source being inspected
+
+## Docker-first development
+
+`DOCKER_FIRST_POLICY: v1`
+
+All project execution is containerized by default. Do not install project dependencies into the
+host Python, a host virtual environment, a user site, or the host operating system. The host may use
+Git/GitHub, Docker/Compose, SSH/SCP, editors, and read-only diagnostics needed to operate Docker.
+Use the repository wrappers for checks:
+
+```bash
+./scripts/docker.sh docs 3.13
+./scripts/docker.sh quality 3.10
+./scripts/docker.sh quality 3.13
+./scripts/docker.sh package 3.12
+```
+
+PowerShell users invoke the same actions through `scripts/docker.ps1`. A missing Docker daemon is an
+unavailable gate, not permission to run `pip`, pytest, Ruff, builds, conversion, or models on the
+host. Any necessary exception must satisfy the documented exception protocol before it runs.
 
 ## Branch workflow
 
@@ -56,7 +77,7 @@ The PR description must include:
 information, update the other in the same commit or pull request and run:
 
 ```bash
-python scripts/check_readme_sync.py
+./scripts/docker.sh docs 3.13
 ```
 
 The two documents may use natural wording in each language, but their section keys, milestone IDs,
@@ -83,6 +104,7 @@ decision before it enters the public repository.
 - Do not introduce new import cycles or public-facade back edges.
 - Add tests before fixing bugs.
 - Do not commit secrets, private infrastructure, model weights, build outputs, or local evidence.
+- Keep model mounts read-only and write outputs/evidence only to separate bounded container mounts.
 - Run every check available for the affected milestone and report any unavailable gate honestly.
 
 ## Security reports
