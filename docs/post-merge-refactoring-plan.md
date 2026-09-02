@@ -2,7 +2,7 @@
 
 状态：仓库事实审查修订版
 
-日期：2026-09-01
+日期：2026-09-02
 适用范围：M0.5 单仓单插件整合完成后的 `h3-forge` 主仓，以及向 `ComfyOmni` 的公开改名
 
 ## 1. 前提与定位
@@ -74,7 +74,28 @@ artifact schema、manifest 字段及已发布制品中的 `h3_forge`/`h3-comfy` 
 
 ## 2. 目标与非目标
 
-### 2.1 目标
+### 2.1 长期成果目标
+
+本轮重构的长期目标是：把最新合并版 `h3-forge` 的有效能力逐项审计并迁入独立 ComfyOmni
+架构，最终交付一个可开源、可安装、可维护、可验证的 `0.2.0` 预发布候选。对使用者可观察的
+结果不是“目录已经移动”，而是同一个 `comfy-omni` distribution 能以 fail-closed 方式完成 Comfy
+checkpoint 的检查、兼容性判定、离线转换、不可变打包和固定 vLLM-Omni adapter 运行验收。
+
+长期目标同时受以下终点约束：
+
+- 代码满足 §4 的单向依赖并消除内部 public-facade 反向依赖、插件递归与 import SCC；
+- CPU、结构、sdist/wheel、clean install 和双语文档同步门真实执行且 fail closed；
+- 迁移代码具有逐文件来源、许可证、归属与公开分发处置；
+- 指定 GPU 验证主机使用摘要固定的模型集完成主组件加载与生成、LoRA 兼容性判定，以及完整 DiT
+  `A → B → A` 热切换；
+- 所有运行证据绑定源码 commit、宿主版本、配置和权重 SHA256，最后候选通过 PR 进入受保护 `main`。
+
+固定模型、验收场景和证据等级的权威位于
+[`docs/testing/model-validation-baseline.md`](testing/model-validation-baseline.md) 及其
+[`model-baseline.v1.json`](testing/model-baseline.v1.json)。下载完成、仅在功能分支存在、只有本地
+mock 通过或缺少指定宿主证据，都不构成长期开源目标完成。
+
+### 2.2 工程目标
 
 1. 保持单发行包和现有 HTTP wire compatibility，同时消除内部“子插件套子插件”的结构。
 2. 建立可自动检查的单向模块依赖，消除 `public` 门面参与的循环依赖。
@@ -86,7 +107,7 @@ artifact schema、manifest 字段及已发布制品中的 `h3_forge`/`h3-comfy` 
    对宿主 `_apply_lora` 的进程内 monkeypatch 必须显式登记、版本锁定并测试，不能称为“零宿主补丁”。
 8. 将项目、distribution、import package 和 CLI 原子迁移到已确定的 ComfyOmni 命名。
 
-### 2.2 非目标
+### 2.3 非目标
 
 - 不重新拆回多个仓库或多个 PyPI 发行包；
 - 不在结构重构 PR 中增加新模型家族、新量化格式或新运行时功能；
@@ -721,6 +742,27 @@ wheel 内容不一致。
 - 新增 direct `os.getenv`、跨层 import、内部 public-facade import 必须被 CI 拒绝；
 - 结构门先采用 no-regression baseline，再随拆分逐步降低基线，避免为一次性清零制造巨型 PR。
 
+### 10.4 固定模型与服务器验收门
+
+真实运行时验收使用版本化、摘要绑定的外部模型 manifest，不允许测试脚本根据目录内容或“最新”标签
+临时挑选模型。`docs/testing/model-baseline.v1.json` 当前固定：
+
+- 10Eros Max H3 TURBO beta4 INT8 ConvRot 主 DiT；
+- Qwen3-VL 32B Heretic MiniMax H3 NVFP4 文本编码器；
+- MiniMax H3 音频与视频 VAE；
+- Spatial Physics 与 Realism People 两个 LoRA 候选；
+- MiniMax-H3 × Z-Image `ref2va` INT8 ConvRot 完整 DiT 热切换候选。
+
+普通 CPU CI 只验证 manifest schema、固定 identity 和测试合同，不下载或分发模型。指定 GPU 主机
+在任何 header 检查、转换或加载前复核文件字节数和 SHA256。LoRA 必须在 mutation 前得到带稳定
+reason code 的 `SUPPORTED` 或 `UNSUPPORTED` 结论；只有证明映射或 bake 路径后才运行激活测试。
+完整 DiT 热切换必须在同一宿主进程完成 A 加载/生成、B 切换/生成、A 回切/生成，并证明 active
+identity、缓存 generation 与资源回收正确。一次下载、一次单模型生成或进程重启后的两次加载都不算
+热切换通过。
+
+模型权重始终是外部测试资产，不进入 Git、sdist、wheel、fixture 或普通 CI cache。公开证据还必须
+满足对应模型许可证、输入/输出权利和敏感内容审查；未完成许可证复核的组件不得进入公开证据包。
+
 ## 11. 打包与依赖
 
 ### 11.1 package data
@@ -903,6 +945,8 @@ docs/
   清单；对带 `verbatim`、`mechanically copied`、`heritage` 标记的实现逐一给出处置，至少包括
   `tools/archs/latent_resizer_3d.py`、`h3/dense_pipeline.py` 的官方数学镜像和 contracts 模板来源；
 - 明确未跟踪文件和本地构建产物的 disposition。
+- 冻结版本化测试模型 manifest、许可证状态、宿主场景和证据 receipt 字段；普通 CI 仅校验合同，
+  不下载权重。
 
 出口条件：有可复核的发布前基线、命名/兼容决策、依赖能力矩阵、host patch registry、逐文件许可
 处置和公开历史结论；任何来源/许可证未确认的文件都已从公开候选排除或被干净实现替换；没有直接
@@ -1000,8 +1044,14 @@ docs/
 - tools coordinator/residency/loader/engine 拆分；
 - LoRA runtime 与离线 LoRA 分离；
 - hoststub、TP、补偿和 fail-closed 测试按新边界迁移。
+- 使用固定模型基线完成主组件真实加载与生成；两个 LoRA 在 mutation 前得到可复核兼容性结论，只有
+  `SUPPORTED` 才进入 off → on → off 激活验证；
+- 使用两个摘要绑定的完整 DiT 在同一进程完成 `A → B → A`，验证 active identity、缓存失效、失败
+  回滚与资源回收。
 
-出口条件：只有 integrations 层继承/导入宿主实现；真实 host 候选保持原加载和请求行为。
+出口条件：只有 integrations 层继承/导入宿主实现；固定主组件完成真实加载、请求、视频与音频生成；
+LoRA 对当前量化底模要么有已证明的支持路径并通过生命周期测试，要么在 mutation 前以稳定原因拒绝；
+完整 DiT 在不重启宿主进程的情况下完成 `A → B → A` 三次摘要身份与生成验证，且资源回到声明预算。
 
 ### Phase 7：公开候选
 
@@ -1073,6 +1123,8 @@ docs/
 - README 的能力声明与 support matrix 一致；
 - 公开树和公开历史没有未处置的秘密、内部基础设施信息或授权不明内容；
 - LICENSE、NOTICE/归属、THIRD_PARTY 与实际发布物内容一致；
+- 固定模型 manifest 通过合同检查；指定 GPU 主机使用相同摘要集完成主组件生成、LoRA preflight 和
+  完整 DiT `A → B → A` 热切换，证据绑定候选 commit 与宿主环境；
 - 一个公开候选 commit 完成 CPU 发布门和适用的真实 host 验收。
 
 达到这些条件后，当前 `h3-forge` 才完成向 `ComfyOmni` 的公开身份迁移，并从“完成插件物理归并”

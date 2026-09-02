@@ -6,7 +6,6 @@ import re
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 READMES = (ROOT / "README.md", ROOT / "README.zh-CN.md")
 SECTION_RE = re.compile(r"<!-- README_SYNC: ([a-z0-9_-]+) -->")
@@ -24,6 +23,12 @@ REQUIRED_SECTIONS = (
     "license",
 )
 REQUIRED_MILESTONES = tuple(f"M{index}" for index in range(8))
+REQUIRED_SHARED_LINKS = (
+    "docs/post-merge-refactoring-plan.md",
+    "docs/architecture/README.md",
+    "docs/testing/model-validation-baseline.md",
+)
+REQUIRED_SHARED_SNIPPETS = ("comfy-omni inspect CHECKPOINT.safetensors --json",)
 
 
 def _read(path: Path) -> str:
@@ -48,13 +53,15 @@ def main() -> int:
         sections = tuple(SECTION_RE.findall(text))
         milestones = tuple(MILESTONE_RE.findall(text))
         if sections != REQUIRED_SECTIONS:
-            errors.append(
-                f"{relative}: README_SYNC keys must be {REQUIRED_SECTIONS}, observed {sections}"
-            )
+            errors.append(f"{relative}: README_SYNC keys must be {REQUIRED_SECTIONS}, observed {sections}")
         if milestones != REQUIRED_MILESTONES:
-            errors.append(
-                f"{relative}: milestone IDs must be {REQUIRED_MILESTONES}, observed {milestones}"
-            )
+            errors.append(f"{relative}: milestone IDs must be {REQUIRED_MILESTONES}, observed {milestones}")
+        for link in REQUIRED_SHARED_LINKS:
+            if link not in text:
+                errors.append(f"{relative}: missing shared public link {link}")
+        for snippet in REQUIRED_SHARED_SNIPPETS:
+            if snippet not in text:
+                errors.append(f"{relative}: missing shared public snippet {snippet}")
 
     if len(documents) == len(READMES):
         section_sets = [tuple(SECTION_RE.findall(text)) for text in documents.values()]

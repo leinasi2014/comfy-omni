@@ -4,6 +4,18 @@ This file governs the independent ComfyOmni repository rooted at the directory c
 file. Legacy plugin repositories and local evidence are siblings outside this Git root; they are
 migration inputs, not part of the new package unless a reviewed migration explicitly imports them.
 
+## Delivery
+
+- Live tasks: [GitHub Issues](https://github.com/leinasi2014/comfy-omni/issues).
+- Integration target: protected `main`; deliver changes through a short-lived branch and pull request.
+- Trusted checks: the commands under “Tests and quality gates”; runtime acceptance runs only on its
+  declared server against an identified candidate.
+- Definition of Done: behavior is present on `main`, affected automated and representative server
+  checks pass, public contracts and documentation are current, and limitations are explicit.
+- Architecture contract and TDD: freeze the boundary in the live issue; executable behavior normally
+  follows RED → GREEN → REFACTOR. A maintainer-approved deferred test must stay open and cannot be
+  represented as a pass.
+
 ## Project identity
 
 - Project: `ComfyOmni`
@@ -14,6 +26,8 @@ migration inputs, not part of the new package unless a reviewed migration explic
 - Tagline: `Bring Comfy checkpoints to native Omni runtimes.`
 - New source root: `src/comfy_omni/`
 - Design authority during the refactor: `docs/post-merge-refactoring-plan.md`
+- Validation-model authority: `docs/testing/model-baseline.v1.json` with the interpretation in
+  `docs/testing/model-validation-baseline.md`
 
 The tagline describes product direction. A runtime is supported only after its own adapter and
 real-host acceptance pass. The first planned adapter is the `UPSTREAM.toml`-pinned vLLM-Omni
@@ -21,7 +35,8 @@ integration inherited from `h3-forge`.
 
 ## Before changing code
 
-1. Read `docs/post-merge-refactoring-plan.md` and the nearest applicable `AGENTS.md`.
+1. Read `docs/post-merge-refactoring-plan.md` and the nearest applicable `AGENTS.md`. For checkpoint,
+   conversion, LoRA, runtime, or host work, also read `docs/testing/model-validation-baseline.md`.
 2. Classify the change as `core`, `domain`, `artifact I/O`, `contract`, `conversion`, `runtime`,
    `application`, `integration`, `API`, `CLI`, `validation`, packaging, or documentation.
 3. List affected public contracts: Python imports, CLI, entry points, HTTP paths, environment
@@ -164,6 +179,11 @@ contents.
 Missing Ruff, pytest, build, twine, or a required test dependency is a failed gate, not
 `NOT_CONFIGURED`. GPU and pinned-host acceptance run in their declared environments and remain
 bound to the exact source commit and artifact digests.
+
+Ordinary CI validates the model-baseline contract but never downloads model payloads. A host run
+must verify exact byte size and SHA256 before inspection or load. Asset presence, a single-model
+generation, a LoRA rejection, or two loads separated by a process restart must not be reported as
+full runtime, LoRA-activation, or hot-swap acceptance.
 
 Before handing off a change, report:
 

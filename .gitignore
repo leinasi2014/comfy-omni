@@ -30,8 +30,9 @@ Thumbs.db
 *.pem
 *.key
 
-# Model, evidence, and media payloads are never committed at repository root
-/*.safetensors
+# Model weights are never committed anywhere; evidence and media payloads stay out of repository root
+*.safetensors
+*.safetensors.partial
 /*.ckpt
 /*.pt
 /*.pth

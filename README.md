@@ -45,13 +45,17 @@ and its distinction between
 <!-- README_SYNC: status -->
 ## Project status
 
-**Early refactoring / repository-foundation stage.** The repository currently contains the approved
-architecture skeleton, development rules, and refactoring plan. It does not yet provide an
-installable `comfy-omni` release or a functional CLI. Do not use current scaffolding as a production
-runtime or compatibility claim.
+**Early refactoring / walking-skeleton stage.** The repository now has installable distribution
+metadata, a lightweight package import, a strict metadata-only `comfy-omni inspect` command, CLI
+identity (`--help` and `--version`), and an empty idempotent plugin entry. No conversion command,
+HTTP API, runtime architecture, or host patch has migrated yet. Do not treat checkpoint recognition
+as a production runtime or compatibility claim.
 
-The existing H3 implementation remains in the legacy workspace while code origin, licensing,
-contracts, tests, and module ownership are audited before migration.
+Except for the audited inspection slice, the existing H3 implementation remains in the legacy
+workspace while code origin, licensing, contracts, tests, and module ownership are audited before
+migration. The digest-pinned server model set is now frozen and its external assets are being
+prepared, but the current candidate is not accepted or releasable until the corresponding runtime
+evidence exists.
 
 <!-- README_SYNC: goals -->
 ## Design goals
@@ -63,6 +67,9 @@ contracts, tests, and module ownership are audited before migration.
 - Keep conversion, dequantization, and mapping work out of the inference hot path.
 - Isolate runtime-specific code behind integrations such as `integrations/vllm_omni`.
 - Provide one consistent Python API, CLI, error model, test baseline, and release process.
+- Prove LoRA compatibility before runtime mutation and fail closed for unsupported base/adapter pairs.
+- Demonstrate full-DiT A-to-B-to-A hot switching in one host process with correct model identity,
+  cache invalidation, failure recovery, and resource reclamation.
 
 <!-- README_SYNC: architecture -->
 ## Architecture
@@ -81,7 +88,9 @@ CLI / HTTP API / runtime integrations
                       core
 ```
 
-The intended source layout lives under [`src/comfy_omni`](src/comfy_omni). Internal modules must
+The intended source layout lives under [`src/comfy_omni`](src/comfy_omni). The
+[validated target architecture](docs/architecture/README.md) shows the dependency and publication
+boundaries while distinguishing proven M0 capability from planned work. Internal modules must
 follow the dependency direction above; the public facade is for external consumers and must not be
 used as an internal dependency shortcut.
 
@@ -96,11 +105,14 @@ used as an internal dependency shortcut.
 | M3 | Single bootstrap and dependency direction | One lazy, idempotent plugin bootstrap; no plugin recursion, public-facade back edges, or import cycles | Planned |
 | M4 | Conversion modularization | Inspection, contracts, mapping, exporters, LoRA conversion, packaging, and publication have explicit owners | Planned |
 | M5 | Runtime modularization | Runtime services are separated from offline conversion and vLLM-Omni host subclasses | Planned |
-| M6 | Runtime acceptance | Pinned vLLM-Omni adapter passes package, load, request, parity, and fail-closed acceptance gates | Planned |
+| M6 | Runtime acceptance | Pinned vLLM-Omni adapter and digest-bound model suite pass package, load, request, LoRA preflight/lifecycle, full-DiT A-to-B-to-A hot-swap, parity, and fail-closed gates | Planned |
 | M7 | Open-source preview | License-cleared `0.2.0a1` or `0.2.0b1` release with synchronized docs and reproducible artifacts | Planned |
 
 Detailed sequencing and exit criteria are maintained in the
 [post-merge refactoring and open-source plan](docs/post-merge-refactoring-plan.md).
+The external test assets and evidence rules are frozen in the
+[model validation baseline](docs/testing/model-validation-baseline.md); model payloads are never
+stored in this repository or downloaded by ordinary CI.
 
 <!-- README_SYNC: layout -->
 ## Repository layout
@@ -109,11 +121,12 @@ Detailed sequencing and exit criteria are maintained in the
 .
 ├── AGENTS.md                 # Architecture, coding, testing, and Git rules
 ├── CONTRIBUTING.md           # Contribution and pull-request workflow
+├── pyproject.toml             # Distribution metadata, CLI, plugin entry, and tool configuration
 ├── README.md                 # English project overview
 ├── README.zh-CN.md           # Simplified Chinese project overview
 ├── docs/                     # Design, ADRs, and public evidence indexes
 ├── scripts/                  # Repository checks
-├── src/comfy_omni/           # New modular Python package skeleton
+├── src/comfy_omni/           # New modular Python package
 └── tests/                    # Unit, contract, integration, packaging, and host lanes
 ```
 
@@ -129,15 +142,19 @@ Before making changes, read:
 2. [`CONTRIBUTING.md`](CONTRIBUTING.md)
 3. [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
 
-The repository is not installable yet. During the foundation milestone, the available documentation
-check is:
+The current walking skeleton can be installed for development:
 
 ```bash
-python scripts/check_readme_sync.py
+python -m pip install -e ".[dev]"
+comfy-omni --help
+comfy-omni --version
+comfy-omni inspect CHECKPOINT.safetensors --json
 ```
 
-Language, lint, test, package, and host gates will become mandatory as their corresponding milestone
-lands. Missing required tooling is a failure, not a fabricated pass.
+This exposes project identity plus strict header-only inspection; it does not load tensor payloads
+or provide legacy conversion/runtime commands. Fast deterministic repository checks run locally and
+in CI as their milestones land; GPU and runtime acceptance runs only on the designated server
+against digest-bound assets. A deferred, missing, or differently targeted check is not a pass.
 
 <!-- README_SYNC: contributing -->
 ## Contributing
