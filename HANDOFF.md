@@ -25,16 +25,15 @@
 - 只允许参考旧项目提交：`e9cb011d00b028c149db3978de246c54f6e34acc`
 - 旧项目许可证：Apache-2.0
 - 旧项目有未跟踪文件 `docs/h3-api-reference.md`；不要修改、删除或提交它。
-- 当前受保护主线：`main@e088740f3d647db819329240cdac863f82dda356`
-
-迁移代码进入 PR 前必须记录旧文件的精确 commit/blob、许可证、归属、保留行为、特征测试证据和
-distribution disposition。不要参考旧项目中比上述提交更新、未提交或其他分支的实现。
+- 迁移代码进入 PR 前必须记录旧文件的精确 commit/blob、许可证、归属、保留行为、特征测试证据和
+  distribution disposition。不要参考旧项目中比上述提交更新、未提交或其他分支的实现。
 
 ## 3. 不可违反的执行规则
 
 - 项目 Python、pytest、Ruff、构建、打包、依赖安装、下载、模型解析、转换和推理全部在 Docker 中运行。
 - 本机只允许编辑/读取文件、Git/GitHub、Docker 编排、SSH/SCP 和只读诊断；本机 Docker 当前不可用，
-  因此普通门禁以 GitHub Actions 的 Docker job 为准。
+  因此普通门禁以 GitHub Actions 的 Docker job 为准（quality/documentation 仅在 PR 与 main push 上触发，
+  分支单独 push 不触发——先建 draft PR 再等门禁）。
 - `srv-00` 上同样 Docker-first；不得直接向宿主安装 Python 包、修改系统代理或污染系统环境。
 - 模型源以只读 mount 进入容器；输出 staging-first、独立验证、manifest-last，禁止覆盖既有产物。
 - 不得把模型、wheel、缓存、服务器证据、生成媒体、私有基础设施或密钥提交到 Git。
@@ -44,114 +43,81 @@ distribution disposition。不要参考旧项目中比上述提交更新、未�
 - import `comfy_omni` 或插件入口不得加载 Torch、FastAPI、vLLM、模型或 checkpoint payload。
 - Git 流程：单 WIP；冻结 READY；先提交 RED；观察 Docker 红灯；GREEN；REFACTOR；短分支；PR；
   全绿后 squash merge；最后必须等待 `main` push 自身的 Docker 回读。
+- ruff format 会把能放进 120 列的推导式/调用合并成单行；多行括号导入与单行导入混排会被
+  isort 要求特定顺序——写测试时预先合并，红灯前先看是否为格式噪声。
 - 开发依据 `D:\skills\manage-agile-software-development\SKILL.md`；服务器操作依据适用的 SSH/srv skill。
 
-## 4. 已完成并进入主线
+## 4. 已完成并进入主线（本交接新增部分）
 
-### 4.1 仓库、规范与门禁
+### 4.1 基础与转换（此前已合并）
 
-独立仓库、`src/comfy_omni` 布局、双语 README、AGENTS/CONTRIBUTING、Docker-first 规范、GitHub
-protected-main 工作流、Python 3.10/3.13 quality、3.12 package/install smoke 和 documentation contract
-均已建立。README 路线图中的状态文字仍较保守，不得仅根据表格推断实际完成度；GitHub Issues、合并
-提交和证据文档才是当前交付状态权威。
+仓库规范、门禁、README/AGENTS/CONTRIBUTING、Docker-first、quality 3.10/3.13、package 3.12、
+documentation 合同、Ref2VA 完整转换（PR #25）、原生包规划（PR #26）、包源验证（PR #27）。
 
-### 4.2 Ref2VA 完整转换（PR #25，Issue #8）
+### 4.2 原生包私有暂存（PR #28，Issue #9 slice 3）
 
-- 合并提交：`27c462f243eff4748a9c6d584cabe0af713af959`
-- 服务器证据：`docs/evidence/ref2va-full-conversion-25ceccdd5468.md`
-- 候选代码：`25ceccdd54680a5e32ea1574974c138d39d08bd6`
-- 输入：`minimax_h3_ref2va_pruned_zs05_int8_convrot.safetensors`
-- 输入身份：20,970,379,680 bytes；
-  `71b8085ac4221ee036708c230a007d617dccca1b0028b95bb4ee106cb2a385c5`
-- 结果：932 actions、532 tensors、10 shards、40,225,668,192 target bytes。
-- 完整转换耗时 636.593 秒，峰值 RSS 1,249,308,672 bytes。
-- 独立 verifier：`VERIFIED`；14 个输出文件；330 raw-copy、2 QKV reorder、200 ConvRot tensors；
-  600 个抽样行、4,838,400 elements；最大 BF16 绝对误差 0.0060174393，在冻结容差内。
-- GPU：NVIDIA CMP 170HX，compute capability 8.0，68,212,293,632 bytes，CUDA 13.0。
-- Docker 策略审计：5 个容器通过；仅 conversion 容器获得 GPU 0；无 Docker socket/宽泛 mount；
-  结束后残留容器为 0。
-- 主线回读：quality/package run `33676167336`，documentation run `33676167338`。
+- 合并提交：`ad4770432a867c71e57ed3a8cac83e051040ef1b`
+- `artifacts.fileops.copy_file_pinned_exclusive` + `conversion.packaging.materialization.materialize_package`。
+- RED `1471ba5` / run `33679298001`；GREEN `dd369fe` / run `33680349335`（220 tests）。
+- provenance：`docs/migration/native-package-materialization-e9cb011.md`。
+- 主线回读：quality `33681696086`、documentation `33681696067`。
 
-服务器证据仍保留在：
-`/home/hyl/comfy-omni-acceptance/ref2va-full-conversion-25ceccdd5468-attempt3`。
+### 4.3 manifest-last 原子发布（PR #29，Issue #9 slice 4）
 
-### 4.3 原生包规划（PR #26，Issue #9 slice 1）
+- 合并提交：`0d111a553f40a86981566119efe37df3671ce4ed`
+- `conversion.packaging.publication.publish_package`：独立重读 staged 树、canonical manifest
+  （`package_manifest_sha256` 自摘要，排除字段域）、manifest-last 独占写、同父目录原子 rename、
+  `PackagePublication`/`PUBLISHED` 结果；失败保留 staging、绝不覆盖输出。
+- RED `28eef7c` / run `33683554019`（`1 failed, 220 passed`，模块缺失；此前三次 push 为格式噪声）。
+- GREEN `debdbfc` / run `33686167540`（227 tests）；documentation run `33686167394`。
+- provenance：`docs/migration/native-package-publication-e9cb011.md`。
+- 主线回读：quality `33686494301`、documentation `33686494167`。
+- 已知刻意偏离：不再生成 legacy 每分区 `model_index.json`；routing 索引并入 manifest；
+  同父目录原子 rename 为新增强化。
 
-- 合并提交：`9d25ff16e91aff5f36da1e21c9e3ecf6948c3170`
-- 文档：`docs/migration/native-package-planning-e9cb011.md`
-- 固定六组件：`transformer`、`text_encoder`、`video_vae`、`audio_vae`、`tokenizer`、`processor`。
-- 固定 host commit：`17285c2f55a41bf15772676121814d59a60ace35`。
-- 输出合同：`h3-comfy-package/v3`、`h3-comfy-package.json`、`Ref2VA/`、单驻留 DiT、
-  `ref2va|t2va|fl2va`。
-- RED run `33676906712`；GREEN runs `33677384662` / `33677384784`。
-- 主线回读：`33677637592` / `33677637532`。
+### 4.4 组件目录 receipt 解析（PR #30，Issue #9 slice 5）
 
-### 4.4 原生包源验证（PR #27，Issue #9 slice 2）
+- 分支：`codex/feat-package-receipts`；READY：
+  <https://github.com/leinasi2014/comfy-omni/issues/9#issuecomment-5516855121>
+- `conversion.packaging.receipts.parse_component_receipt`：确定性树 census、拒绝 link/special/
+  空树、每文件 pinned 哈希、复核遍（同尺寸改写也拒绝）、`receipt_sha256` canonical 摘要、
+  直接产出 `plan_native_package` 可用的 `ComponentReceipt`。
+- RED `788306c` / run `33687433419`（`1 failed, 227 passed`；首推 `55ff5e5`/`33687245144` 为格式噪声）。
+- GREEN `745a1da` / run `33688797338`（233 tests）；documentation run `33688797414`。
+- provenance：`docs/migration/component-receipt-parsing-e9cb011.md`。
 
-- 合并提交：`e088740f3d647db819329240cdac863f82dda356`
-- 文档：`docs/migration/native-package-source-verification-e9cb011.md`
-- 已实现完整 plan 重建、自摘要复核、精确树 census、link/reparse/special entry 拒绝、
-  pinned-descriptor 流式 SHA256 和 immutable verification result。
-- RED run `33678019449`：1 failed / 204 passed。
-- GREEN runs `33678567807` / `33678567901`：211 passed。
-- 文档提交回读：`33678832949` / `33678832936`。
-- 主线回读：`33678931432` / `33678931474`。
+完整发布链已闭合：`parse_component_receipt -> plan_native_package -> verify_package_sources ->
+materialize_package -> publish_package`。
 
-Issue #9 必须保持打开，直到 package writing、独立 output verification、atomic publication 和固定组件
-真实组包完成。
+Issue #9 在 receipt 解析与 E3 真实组包完成前保持打开。
 
-## 5. 当前唯一 WIP：PR #28
+## 5. 当前唯一 WIP：PR #30
 
-- 分支：`codex/feat-package-materialization`
-- PR：<https://github.com/leinasi2014/comfy-omni/pull/28>（当前仍是 draft）
-- READY：<https://github.com/leinasi2014/comfy-omni/issues/9#issuecomment-5515909283>
-- RED commit：`1471ba5b296e94892c951155782bf8157bd60ae8`
-- RED quality run：`33679298001`，两条 Python 线均为唯一缺失模块失败，`1 failed, 211 passed`；
-  package/install smoke 通过。
-- GREEN implementation commit：`dd369fe5d241fa70ce6c5e536981d7fb0e62922d`
-- GREEN quality run：`33680349335`，Python 3.10/3.13、220 tests、package/install smoke 全绿。
-- GREEN documentation run：`33680349346`，通过。
-
-当前实现内容：
-
-- `artifacts.fileops.copy_file_pinned_exclusive`：8 MiB 有界复制、源 descriptor 身份前后检查、
-  exclusive target、fsync、目标路径身份检查和独立回读。
-- `conversion.packaging.materialization.materialize_package`：先复核 plan/source，拒绝输出覆盖和
-  source/output overlap，在输出父目录建立私有 sibling staging，复制精确目标，复核 staging census，
-  返回 `STAGED_VERIFIED` 不可变结果。
-- 失败时最终 output 不出现；私有 staging 保留作诊断，不执行不安全的递归清理。
-- 测试覆盖正常暂存、既有输出、路径重叠、预验证后源漂移、linked source、复制中断、意外 staging
-  文件、目标碰撞和同尺寸源改写。
-
-本交接文档提交后 PR head 会变化，`dd369fe` 的绿灯仍是行为证据，但新 head 必须重新通过 Docker
-门禁后才能继续。
+- 分支：`codex/feat-package-receipts`，PR：<https://github.com/leinasi2014/comfy-omni/pull/30>
+- RED commit `788306c`（run `33687433419`）、GREEN commit `745a1da`（runs `33688797338` /
+  `33688797414`）、provenance 与本交接文档为后续 head。
 
 ## 6. 下一位执行者的精确续接步骤
 
-1. 确认位于 `codex/feat-package-materialization`，工作树只包含预期的交接提交。
-2. 等待 PR #28 最新 head 的 quality/documentation Docker checks；禁止用旧 head 绿灯代替。
-3. 对失败只做最小修复。若全绿，新增
-   `docs/migration/native-package-materialization-e9cb011.md`，记录：
-   - `h3-forge@e9cb011...`；
-   - `package_assembler.py` blob `e64558f1d3bb6e1ee6f714b70e783d9df907f9ce`；
-   - `fsops.py` blob `ae40e46eef808f979ee085e806f2380e50b6c01d`；
-   - RED/GREEN runs、保留行为、许可证/归属、distribution disposition。
-4. 更新 PR #28 body，列出 READY、RED、GREEN、REFACTOR、非目标和回滚；转 ready。
-5. 等文档 head 的 Docker checks 全绿后 squash merge PR #28。
-6. 等 `main` push 自身 quality/package/documentation 回读；把合并 commit 和 run URL 评论到 Issue #9。
-7. 新建下一个短分支并先在 Issue #9 冻结 READY。推荐下一切片仅做：生成 package manifest/model index、
-   独立重读 staged output、manifest-last 写入和同父目录原子 rename；不要同时加入 CLI 或真实模型。
-8. 上述完整 publication 合并后，再用固定六组件在 `srv-00` Docker 中做真实 package E3；随后才进入
-   单一 vLLM-Omni bootstrap、native load/minimal generation、LoRA、`A → B → A`。
+1. 等 PR #30 文档 head 的 quality/documentation Docker checks；失败只做最小修复。
+2. 更新 PR #30 body（READY/RED/GREEN/REFACTOR/非目标/回滚），转 ready，全绿后 squash merge。
+3. 等 `main` push 回读；合并 commit 与 run URL 评论到 Issue #9。
+4. 下一切片建议（Issue #9 继续）：
+   - 真实工具身份解析（`resolve` ComfyOmni 自身 distribution/version/commit/wheel SHA），供 E3 使用；
+   - 或直接进入 E3：在 `srv-00` Docker 中用固定六组件真实目录走完整发布链并保留证据
+     （receipt 解析 -> plan -> verify -> materialize -> publish），E3 属于服务器侧工作，依据
+     docker-first 与 model-validation-baseline 文档。
+5. E3 之后才进入：单一 lazy idempotent vLLM-Omni bootstrap、native load、最小生成 E4、LoRA、
+   `A → B → A` E5、双语用户文档、预发布与 M7。
 
-不得在本机运行 `python`、`pip`、`pytest` 或 `ruff`。常用只读/编排命令：
+常用只读/编排命令：
 
 ```text
 git status --short
 git log --oneline --decorate -8
-gh pr view 28 --json headRefOid,isDraft,mergeStateStatus,statusCheckRollup,url
-gh pr checks 28 --watch
-gh run list --branch codex/feat-package-materialization --limit 6
+gh pr view 30 --json headRefOid,isDraft,mergeStateStatus,statusCheckRollup,url
+gh pr checks 30 --watch
+gh run list --branch codex/feat-package-receipts --limit 6
 ```
 
 ## 7. 固定测试资产与下载事实
@@ -163,7 +129,7 @@ gh run list --branch codex/feat-package-materialization --limit 6
 | ID | 文件 | bytes | SHA256 |
 | --- | --- | ---: | --- |
 | primary-dit | `10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors` | 20,967,637,320 | `54d56b15...bbc1` |
-| text-encoder | `qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors` | 15,683,129,659 | `47babbb3...94c` |
+| text-encoder | `qwen3vl_32b_hermetic_minimax_h3_nvfp4.safetensors` | 15,683,129,659 | `47babbb3...94c` |
 | audio-vae | `minimax_h3_audio_vae_fp32.safetensors` | 605,254,808 | `8e505d95...b48` |
 | video-vae | `minimax_h3_video_vae_fp16.safetensors` | 5,207,808,496 | `7c1f1314...522` |
 | spatial-physics-lora | `wushu_spatial_physics_clean_3000_pruned.safetensors` | 155,109,672 | `7d14f370...19d` |
@@ -179,11 +145,15 @@ tunnel 使用维护者提供的 VLESS 节点；ModelScope 文本编码器通过�
 `a166c7bbbe66a22065159e478335fee4a633c4a3e3bb34c8e8ac4cc91bf4996f`。不得原地修改源文件或把
 “忽略尾部”变成通用开关。
 
+E3 还需要的组件事实：`video_vae`/`audio_vae`/`tokenizer`/`processor` 四个组件的 srv-00 真实目录
+布局与转换来源尚未在证据文档中固定；进入 E3 前先在 Issue #9 固化每个组件的目录路径与生成方式
+（Ref2VA 转换输出、规范化 text encoder 派生副本等）。
+
 ## 8. 仍未完成
 
-- PR #28 的 provenance 文档、ready、合并和主线回读。
-- package manifest/model index、独立 output verifier、manifest-last atomic publication。
-- 固定六组件真实组包 E3。
+- PR #30 的 ready、合并与主线回读。
+- 真实工具身份解析（E3 前置）。
+- 固定六组件真实组包 E3（srv-00 Docker，证据文档）。
 - 单一、lazy、idempotent vLLM-Omni plugin bootstrap 与 CLI/runtime load。
 - primary package 的 native load、最小安全提示词视频/音频生成 E4。
 - Spatial Physics 与 Realism People 的只读 compatibility oracle、支持时的 off/on/off 生命周期。
