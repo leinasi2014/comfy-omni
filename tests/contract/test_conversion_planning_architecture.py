@@ -16,6 +16,15 @@ EXPECTED_INTERNAL_PREFIXES = {
         "comfy_omni.domain",
     ),
     "src/comfy_omni/conversion/exporters/models.py": (),
+    "src/comfy_omni/conversion/exporters/payloads.py": (
+        "comfy_omni.artifacts",
+        "comfy_omni.contracts",
+        "comfy_omni.conversion.exporters",
+        "comfy_omni.domain",
+    ),
+    "src/comfy_omni/conversion/numerics/serialization.py": (
+        "comfy_omni.conversion.numerics",
+    ),
     "src/comfy_omni/conversion/exporters/planning.py": (
         "comfy_omni.artifacts",
         "comfy_omni.contracts",
