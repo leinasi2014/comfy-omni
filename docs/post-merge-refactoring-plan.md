@@ -72,6 +72,20 @@ artifact schema、manifest 字段及已发布制品中的 `h3_forge`/`h3-comfy` 
 受验收 adapter 仍是 `UPSTREAM.toml` 固定的 vLLM-Omni；未来 runtime 必须通过新的 integration adapter
 和各自真实宿主验收加入，不能复用 vLLM-Omni 的 `SUPPORTED` 结论。
 
+### 1.3 Docker-first 执行边界
+
+本仓所有开发命令、测试、lint、构建、打包、checkpoint 检查／转换、下载、生成、CI 和服务器验收，
+默认且权威的执行边界都是 Docker。宿主机仅负责文件编辑、Git／GitHub、Docker／Compose、SSH／SCP，
+以及建立容器边界所必需的只读系统、存储、网络、Docker daemon 和 GPU driver 诊断。禁止因为镜像缺失
+或容器失败而向宿主系统 Python、虚拟环境、user site 或系统包管理器安装项目依赖，也禁止直接在宿主
+运行 ComfyOmni、Torch、vLLM、模型解析、下载、转换或推理。
+
+完整 allowlist、例外审批、最小权限、网络、模型只读挂载、独立输出／证据卷和服务器证据合同，以
+[`docs/development/docker-first.md`](development/docker-first.md) 为权威。任何技术上确实无法放入容器的
+例外都必须在执行前写入当前 Issue／PR，明确命令、目标写入、回滚与结果；便利性不构成例外。GitHub CI
+只在 runner 上 checkout、读取 Git 状态并编排 Docker，Python 质量门和打包门全部在仓库镜像内运行。
+指定 GPU 服务器同样只运行容器化候选，权重只读挂载，证据写入单独且有边界的目录或 volume。
+
 ## 2. 目标与非目标
 
 ### 2.1 长期成果目标
