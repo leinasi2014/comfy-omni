@@ -82,7 +82,7 @@ def _validate_build_contract() -> list[str]:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     errors = [
         f"Dockerfile is missing target {target}"
-        for target in ("documentation", "quality", "package-check", "runtime")
+        for target in ("documentation", "quality", "package-check", "runtime", "numerics-runtime")
         if f" AS {target}" not in dockerfile
     ]
     for relative in ("scripts/docker.sh", "scripts/docker.ps1"):

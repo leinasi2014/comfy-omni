@@ -6,6 +6,7 @@ readonly repository_root="$(cd -- "${script_dir}/.." && pwd)"
 readonly action="${1:-quality}"
 readonly python_version="${2:-3.13}"
 readonly python_registry="${COMFY_OMNI_PYTHON_REGISTRY:-docker.io/library}"
+readonly numerics_base_image="${COMFY_OMNI_NUMERICS_BASE_IMAGE:-docker.io/vllm/vllm-openai:v0.27.0}"
 
 case "${python_version}" in
   3.10|3.11|3.12|3.13) ;;
@@ -13,6 +14,10 @@ case "${python_version}" in
 esac
 if [[ ! "${python_registry}" =~ ^[a-z0-9._:/-]+$ ]]; then
   echo "invalid COMFY_OMNI_PYTHON_REGISTRY: ${python_registry}" >&2
+  exit 2
+fi
+if [[ ! "${numerics_base_image}" =~ ^[a-z0-9._@:/-]+$ ]]; then
+  echo "invalid COMFY_OMNI_NUMERICS_BASE_IMAGE: ${numerics_base_image}" >&2
   exit 2
 fi
 
@@ -30,7 +35,8 @@ case "${action}" in
   quality) target=quality ;;
   package) target=package-check ;;
   image|cli) target=runtime ;;
-  *) echo "usage: $0 {docs|quality|package|image|cli} [3.10|3.11|3.12|3.13] [CLI_ARGS...]" >&2; exit 2 ;;
+  numerics) target=numerics-runtime ;;
+  *) echo "usage: $0 {docs|quality|package|image|cli|numerics} [3.10|3.11|3.12|3.13] [CLI_ARGS...]" >&2; exit 2 ;;
 esac
 
 docker build \
@@ -38,6 +44,7 @@ docker build \
   --build-arg "PYTHON_REGISTRY=${python_registry}" \
   --build-arg "COMFY_OMNI_BUILD_COMMIT=${source_commit}" \
   --build-arg "COMFY_OMNI_BUILD_DIRTY=${source_dirty}" \
+  --build-arg "NUMERICS_BASE_IMAGE=${numerics_base_image}" \
   --target "${target}" \
   --tag "${image}" \
   .

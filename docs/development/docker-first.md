@@ -33,7 +33,7 @@ never authorizes installing or running ComfyOmni itself on the host.
 
 ## Repository images and commands
 
-The root `Dockerfile` owns four reviewable targets:
+The root `Dockerfile` owns five reviewable targets:
 
 | Target | Purpose | Network while running |
 |---|---|---|
@@ -41,6 +41,7 @@ The root `Dockerfile` owns four reviewable targets:
 | `quality` | Ruff, pytest, documentation, and policy gates | none after image build |
 | `package-check` | sdist/wheel build, metadata checks, clean wheel install, CLI smoke | none after image build |
 | `runtime` | minimal non-root `comfy-omni` CLI image | none by default |
+| `numerics-runtime` | lazy-Torch conversion math on the vLLM integration image | none by default |
 
 Image builds may use the network to obtain declared base images and dependencies. Running a built
 quality, package, conversion, or runtime image is offline by default. A download-specific container
@@ -56,6 +57,7 @@ state, then delegate project execution to Docker:
 ./scripts/docker.sh quality 3.13
 ./scripts/docker.sh package 3.12
 ./scripts/docker.sh cli 3.13 --help
+./scripts/docker.sh numerics 3.13
 ```
 
 ```powershell
@@ -64,7 +66,14 @@ state, then delegate project execution to Docker:
 .\scripts\docker.ps1 quality 3.13
 .\scripts\docker.ps1 package 3.12
 .\scripts\docker.ps1 cli 3.13 --help
+.\scripts\docker.ps1 numerics 3.13
 ```
+
+A numerics image defaults to the same `vllm/vllm-openai:v0.27.0` release boundary currently pinned
+by the adjacent vLLM-Omni integration checkout. A constrained registry may set
+`COMFY_OMNI_NUMERICS_BASE_IMAGE` to a reviewed mirror of that exact tag. Its resolved image ID must
+be recorded in acceptance evidence, and a release candidate must replace the tag with an immutable
+digest.
 
 A missing local Docker daemon makes the local gate unavailable; it does not authorize a host-Python
 fallback. The same targets must then pass in trusted CI and, where required, on the designated
