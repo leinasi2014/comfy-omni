@@ -1,7 +1,7 @@
 """Command-line presentation boundary for ComfyOmni.
 
-The walking skeleton exposes project identity only. Business commands are added as independently
-reviewed application slices; this module must not become an implementation layer.
+Commands are thin adapters over application use cases; this module owns only root parsing and
+dispatch and must not become an implementation layer.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import argparse
 from collections.abc import Sequence
 
 from comfy_omni import __version__
+from comfy_omni.cli.commands import inspect
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -22,13 +23,18 @@ def _parser() -> argparse.ArgumentParser:
         action="version",
         version=f"%(prog)s {__version__}",
     )
+    subparsers = parser.add_subparsers(dest="command")
+    inspect_parser = subparsers.add_parser("inspect", help="inspect safetensors headers without loading tensors")
+    inspect.configure_parser(inspect_parser)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse the current identity-only CLI surface."""
+    """Parse and dispatch the current CLI surface."""
 
-    _parser().parse_args(argv)
+    args = _parser().parse_args(argv)
+    if args.command == "inspect":
+        return inspect.run(args)
     return 0
 
 

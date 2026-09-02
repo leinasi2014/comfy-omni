@@ -44,13 +44,13 @@ import package 应当是合法标识符。GitHub 可能把只有一个子目录�
 ## 项目状态
 
 **早期重构／walking skeleton 阶段。** 当前仓库已经具备可安装的 distribution 元数据、轻量包导入、
-只提供身份能力的 `comfy-omni` CLI（`--help` 与 `--version`），以及一个空的幂等插件入口。目前尚未
-迁移任何转换命令、HTTP API、运行时架构或宿主 patch；这个 walking skeleton 不能作为生产运行时或
-兼容性声明使用。
+严格且只读 metadata 的 `comfy-omni inspect` 命令、CLI 身份能力（`--help` 与 `--version`），以及一个
+空的幂等插件入口。目前尚未迁移任何转换命令、HTTP API、运行时架构或宿主 patch；checkpoint 被识别
+不能作为生产运行时或兼容性声明使用。
 
-现有 H3 实现暂时保留在旧工作区；代码只有在完成来源、许可证、合同、测试和模块归属审计后才会迁移。
-摘要固定的服务器测试模型集现已冻结，外部资产正在准备；在取得对应运行时证据前，当前候选仍不能
-视为已验收或可发布。
+除已审计的 inspection 切片外，现有 H3 实现暂时保留在旧工作区；代码只有在完成来源、许可证、合同、
+测试和模块归属审计后才会迁移。摘要固定的服务器测试模型集现已冻结，外部资产正在准备；在取得对应
+运行时证据前，当前候选仍不能视为已验收或可发布。
 
 <!-- README_SYNC: goals -->
 ## 设计目标
@@ -139,10 +139,12 @@ CLI / HTTP API / runtime integrations
 python -m pip install -e ".[dev]"
 comfy-omni --help
 comfy-omni --version
+comfy-omni inspect CHECKPOINT.safetensors --json
 ```
 
-目前只提供项目身份能力，尚未迁移旧命令。快速、确定性的仓库检查会随里程碑在本地和 CI 执行；GPU
-与运行时验收只在指定服务器针对摘要绑定资产运行。延后、缺失或目标不同的检查都不能伪装成通过。
+目前提供项目身份和严格的 header-only inspection；它不会读取 tensor payload，也尚未提供旧转换／
+运行时命令。快速、确定性的仓库检查会随里程碑在本地和 CI 执行；GPU 与运行时验收只在指定服务器
+针对摘要绑定资产运行。延后、缺失或目标不同的检查都不能伪装成通过。
 
 <!-- README_SYNC: contributing -->
 ## 参与贡献

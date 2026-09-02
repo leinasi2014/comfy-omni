@@ -27,6 +27,7 @@ REQUIRED_SHARED_LINKS = (
     "docs/post-merge-refactoring-plan.md",
     "docs/testing/model-validation-baseline.md",
 )
+REQUIRED_SHARED_SNIPPETS = ("comfy-omni inspect CHECKPOINT.safetensors --json",)
 
 
 def _read(path: Path) -> str:
@@ -57,6 +58,9 @@ def main() -> int:
         for link in REQUIRED_SHARED_LINKS:
             if link not in text:
                 errors.append(f"{relative}: missing shared public link {link}")
+        for snippet in REQUIRED_SHARED_SNIPPETS:
+            if snippet not in text:
+                errors.append(f"{relative}: missing shared public snippet {snippet}")
 
     if len(documents) == len(READMES):
         section_sets = [tuple(SECTION_RE.findall(text)) for text in documents.values()]
