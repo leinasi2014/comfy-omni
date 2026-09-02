@@ -17,6 +17,15 @@ try {
         throw "Cannot resolve the exact lowercase Git commit."
     }
     $sourceDirty = if ((& git status --porcelain --untracked-files=normal)) { "1" } else { "0" }
+    $pythonRegistry = if ($env:COMFY_OMNI_PYTHON_REGISTRY) {
+        $env:COMFY_OMNI_PYTHON_REGISTRY
+    }
+    else {
+        "docker.io/library"
+    }
+    if ($pythonRegistry -notmatch "^[a-z0-9._:/-]+$") {
+        throw "Invalid COMFY_OMNI_PYTHON_REGISTRY: $pythonRegistry"
+    }
     $target = @{
         docs = "documentation"
         quality = "quality"
@@ -28,6 +37,7 @@ try {
 
     & docker build `
         --build-arg "PYTHON_VERSION=$PythonVersion" `
+        --build-arg "PYTHON_REGISTRY=$pythonRegistry" `
         --build-arg "COMFY_OMNI_BUILD_COMMIT=$sourceCommit" `
         --build-arg "COMFY_OMNI_BUILD_DIRTY=$sourceDirty" `
         --target $target `

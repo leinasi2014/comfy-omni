@@ -70,6 +70,11 @@ A missing local Docker daemon makes the local gate unavailable; it does not auth
 fallback. The same targets must then pass in trusted CI and, where required, on the designated
 Docker server.
 
+The default Python base registry is `docker.io/library`. A network-constrained environment may set
+`COMFY_OMNI_PYTHON_REGISTRY` to a reviewed pull-through mirror prefix for a build without changing
+the host daemon configuration. Record the mirror, resolved base image ID/digest, and reason in the
+live evidence. A mirror does not make a mutable tag an acceptable release identity.
+
 ## Container safety contract
 
 - Run application containers as a numeric non-root user, with all Linux capabilities dropped,

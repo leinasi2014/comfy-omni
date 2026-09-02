@@ -88,6 +88,8 @@ def _validate_build_contract() -> list[str]:
     for relative in ("scripts/docker.sh", "scripts/docker.ps1"):
         if not (ROOT / relative).is_file():
             errors.append(f"missing Docker entry point: {relative}")
+    if "ARG PYTHON_REGISTRY=docker.io/library" not in dockerfile:
+        errors.append("Dockerfile must default to the official Python registry namespace")
     return errors
 
 

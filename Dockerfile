@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
 ARG PYTHON_VERSION=3.13
+ARG PYTHON_REGISTRY=docker.io/library
 
-FROM python:${PYTHON_VERSION}-slim-bookworm AS python-base
+FROM ${PYTHON_REGISTRY}/python:${PYTHON_VERSION}-slim-bookworm AS python-base
 
 ARG COMFY_OMNI_BUILD_COMMIT
 ARG COMFY_OMNI_BUILD_DIRTY
@@ -26,8 +27,7 @@ FROM python-base AS development
 
 COPY pyproject.toml setup.py README.md LICENSE ./
 COPY src ./src
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --no-cache-dir -e ".[dev]"
+RUN python -m pip install --no-cache-dir -e ".[dev]"
 COPY . .
 
 FROM development AS documentation
@@ -47,8 +47,7 @@ FROM python-base AS package-builder
 
 COPY pyproject.toml setup.py README.md LICENSE ./
 COPY src ./src
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --no-cache-dir build twine \
+RUN python -m pip install --no-cache-dir build twine \
     && python -m build --outdir /dist \
     && python -m twine check /dist/*
 
