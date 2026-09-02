@@ -64,9 +64,7 @@ def regular_hadamard_reference(size: int) -> tuple[tuple[float, ...], ...]:
     signs: tuple[tuple[int, ...], ...] = ((1,),)
     for _ in range(exponent):
         signs = tuple(
-            tuple(left * right for left in outer_row for right in inner_row)
-            for outer_row in signs
-            for inner_row in _H4
+            tuple(left * right for left in outer_row for right in inner_row) for outer_row in signs for inner_row in _H4
         )
     normalization = math.sqrt(size)
     return tuple(tuple(value / normalization for value in row) for row in signs)
@@ -127,10 +125,7 @@ def inverse_convrot_reference(
     scales = tuple(float(value) for value in rowwise_scale)
     if not all(math.isfinite(value) and value > 0 for value in scales):
         raise ConvRotNumericsError("reference scales must be finite and positive")
-    dequantized = tuple(
-        tuple(value * scales[row_index] for value in row)
-        for row_index, row in enumerate(integer_rows)
-    )
+    dequantized = tuple(tuple(value * scales[row_index] for value in row) for row_index, row in enumerate(integer_rows))
     return apply_regular_hadamard_reference(dequantized, group_size=group_size)
 
 
