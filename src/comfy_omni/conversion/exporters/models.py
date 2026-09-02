@@ -49,6 +49,7 @@ class TensorAction:
     target_bytes: int
     operation: str
     group_prefix: str | None = None
+    group_size: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -61,6 +62,7 @@ class TensorAction:
             "target_bytes": self.target_bytes,
             "operation": self.operation,
             "group_prefix": self.group_prefix,
+            "group_size": self.group_size,
         }
 
 

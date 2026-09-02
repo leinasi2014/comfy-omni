@@ -33,7 +33,7 @@ from comfy_omni.conversion.exporters.models import (
 from comfy_omni.domain.checkpoints import TensorDescriptor
 from comfy_omni.domain.qkv import qkv_to_grouped_row_indices
 
-PLAN_SCHEMA = "comfy_omni.native_export.plan/v1"
+PLAN_SCHEMA = "comfy_omni.native_export.plan/v2"
 DEFAULT_MAX_ROWS = 128
 DEFAULT_MAX_SHARD_BYTES = 4 * 1024**3
 MAX_ROWS_LIMIT = 4096
@@ -173,11 +173,11 @@ def _qkv_check(descriptor: TensorDescriptor, qkv: QkvLayoutPlan) -> None:
 
 def _action_for(
     descriptor: TensorDescriptor,
-    group_role: tuple[str, str] | None,
+    group_role: tuple[str, str, int] | None,
     qkv: QkvLayoutPlan,
 ) -> TensorAction:
     source_bytes = _raw_bytes(descriptor)
-    prefix, role = group_role or (None, "copy")
+    prefix, role, group_size = group_role or (None, "copy", None)
     is_qkv = descriptor.name.endswith(".attn.qkv_proj.weight")
     if role == "marker":
         return TensorAction(
@@ -190,6 +190,7 @@ def _action_for(
             0,
             OP_OMIT_MARKER,
             prefix,
+            group_size,
         )
     if role == "scale":
         return TensorAction(
@@ -202,6 +203,7 @@ def _action_for(
             0,
             OP_OMIT_SCALE,
             prefix,
+            group_size,
         )
     if role == "weight":
         if is_qkv:
@@ -217,6 +219,7 @@ def _action_for(
             _converted_bytes(descriptor),
             operation,
             prefix,
+            group_size,
         )
     if is_qkv:
         _qkv_check(descriptor, qkv)
@@ -244,7 +247,7 @@ def _action_for(
 
 
 def _build_actions(report: CensusReport, qkv: QkvLayoutPlan) -> tuple[TensorAction, ...]:
-    roles: dict[str, tuple[str, str]] = {}
+    roles: dict[str, tuple[str, str, int]] = {}
     for group in report.groups:
         for name, role in (
             (group.weight.name, "weight"),
@@ -253,7 +256,7 @@ def _build_actions(report: CensusReport, qkv: QkvLayoutPlan) -> tuple[TensorActi
         ):
             if name in roles:
                 _fail("a source tensor belongs to multiple ConvRot groups", "tensor-action", tensor=name)
-            roles[name] = (group.prefix, role)
+            roles[name] = (group.prefix, role, group.group_size)
     actions = tuple(
         _action_for(item, roles.get(item.name), qkv)
         for item in sorted(report.descriptors, key=lambda descriptor: descriptor.name)

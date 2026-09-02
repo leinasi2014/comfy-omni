@@ -83,6 +83,14 @@ def test_plan_is_deterministic_complete_and_explicit_about_semantics() -> None:
         "final_layer.bias": OP_COPY_RAW,
         "token_refiner.blocks.0.attn.qkv_proj.weight": OP_COPY_QKV_TO_GROUPED,
     }
+    grouped = {item.source_name: item.group_size for item in first.actions}
+    assert grouped == {
+        "blocks.0.attn.qkv_proj.comfy_quant": 256,
+        "blocks.0.attn.qkv_proj.weight": 256,
+        "blocks.0.attn.qkv_proj.weight_scale": 256,
+        "final_layer.bias": None,
+        "token_refiner.blocks.0.attn.qkv_proj.weight": None,
+    }
     assert len(first.shards) == 2
     assert first.to_dict()["semantics"] == {
         "description": "inverse-convrot-to-dense-bf16; runtime-int8-required; not-payload-preserving",

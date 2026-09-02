@@ -1,0 +1,13 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+COPY *.whl /tmp/wheel/
+RUN python3 -m pip install --no-index --no-deps --force-reinstall /tmp/wheel/*.whl \
+    && rm -rf /tmp/wheel \
+    && mkdir -p /opt/comfy-omni-runtime \
+    && chown 1000:1000 /opt/comfy-omni-runtime
+
+WORKDIR /opt/comfy-omni-runtime
+USER 1000:1000
+ENTRYPOINT ["python3"]

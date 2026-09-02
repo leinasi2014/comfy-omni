@@ -26,6 +26,7 @@ from comfy_omni.contracts.models import (
 from comfy_omni.contracts.templates import ARCHITECTURE_TEMPLATES, template_digest
 
 SNAPSHOT_SCHEMA = "h3_forge.contract.snapshot/v1"
+CONTRACT_SNAPSHOT_COPY_NAME = "source-contract.snapshot.json"
 CONTRACT_BLOCK_SCHEMA = "h3_forge.contract/v1"
 PIN_BLOCK_SCHEMA = "h3_forge.contract.pin/v1"
 DECISION_INHERITED_ENFORCED_PIN = "inherited-enforced-pin"
@@ -268,6 +269,7 @@ def snapshot_record(snapshot: ContractSnapshot) -> ContractRecord:
 
 
 __all__ = [
+    "CONTRACT_SNAPSHOT_COPY_NAME",
     "CONTRACT_BLOCK_SCHEMA",
     "DECISION_CENSUS_ONLY",
     "DECISION_INHERITED_ENFORCED_PIN",

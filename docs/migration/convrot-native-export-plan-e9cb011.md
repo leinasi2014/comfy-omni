@@ -106,20 +106,24 @@ header evidence only, not conversion or inference acceptance.
 ## Issue #8 progress and remaining slices
 
 The lazy-Torch numerical backend is accepted at `b0b757a696d9`. The held-source, deterministic
-safetensors writer, independent verifier, and manifest-last transaction are accepted for
-`copy-raw` at `1a8ce636aa06`. Remaining work is:
+safetensors writer, independent verifier, and manifest-last transaction were accepted for
+`copy-raw` at `1a8ce636aa06`. Every planned operation, exact ConvRot triplet binding, bounded QKV
+reorder, bounded inverse ConvRot, and external-snapshot carry are accepted at `1b2324ada243`.
+Remaining work is:
 
-1. Add inverse-ConvRot and QKV-reorder payload producers to the accepted transaction without
-   weakening its source/action/shard binding.
-2. Carry and verify external contract snapshots before executing the Ref2VA plan.
-3. Restore the legacy `export-native` CLI only when all operations in the authorized plan execute;
-   do not expose a command that sounds like a full export while it is copy-only.
-4. Run an authorized full Ref2VA conversion in a resource-bounded Docker container on `srv-00`, then
+1. Execute the complete authorized 932-tensor Ref2VA plan and retain immutable output evidence.
+2. Restore the legacy `export-native` CLI only when the complete Ref2VA route passes; do not expose
+   a command that sounds like a full export while only the bounded synthetic route is accepted.
+3. Load the converted artifact in the native runtime in a resource-bounded Docker container on
+   `srv-00`, then
    bind numerical/output evidence to the source, converter image, and Git commit.
-5. Keep the primary 10Eros path fail-closed until its independent contract is reviewed and pinned.
+4. Keep the primary 10Eros path fail-closed until its independent contract is reviewed and pinned.
 
 The completed Docker evidence for this planning slice is indexed in
 [`docs/evidence/convrot-plan-ed08abbe2df5.md`](../evidence/convrot-plan-ed08abbe2df5.md).
 The transaction design and evidence are indexed in
 [`docs/migration/convrot-native-export-transaction-e9cb011.md`](convrot-native-export-transaction-e9cb011.md)
 and [`docs/evidence/convrot-transaction-1a8ce636aa06.md`](../evidence/convrot-transaction-1a8ce636aa06.md).
+The bounded producer design and acceptance are indexed in
+[`docs/migration/convrot-payload-producers-e9cb011.md`](convrot-payload-producers-e9cb011.md) and
+[`docs/evidence/convrot-payload-producers-1b2324ada243.md`](../evidence/convrot-payload-producers-1b2324ada243.md).
