@@ -35,7 +35,9 @@ def torch_convrot_bf16_block(
     torch = _torch()
     weight = torch.frombuffer(bytearray(qweight), dtype=torch.int8).reshape(rows, columns)
     scale = torch.frombuffer(bytearray(rowwise_scale), dtype=torch.float32).reshape(rows, 1)
-    decoded = fast_inverse_convrot_rows(weight, scale, group_size=group_size).to(dtype=torch.bfloat16).contiguous().cpu()
+    decoded = (
+        fast_inverse_convrot_rows(weight, scale, group_size=group_size).to(dtype=torch.bfloat16).contiguous().cpu()
+    )
     payload = bytes(decoded.view(torch.uint8).untyped_storage())
     expected = rows * columns * 2
     if len(payload) != expected:
