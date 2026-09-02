@@ -24,6 +24,12 @@ def _conversion_device(torch: object) -> str:
     return device
 
 
+def _tensor_bytes(torch: object, tensor: object) -> bytes:
+    """Copy one contiguous CPU tensor through NumPy's buffer protocol."""
+
+    return tensor.view(torch.uint8).numpy().tobytes(order="C")
+
+
 def torch_convrot_bf16_block(
     qweight: bytes,
     rowwise_scale: bytes,
@@ -49,7 +55,7 @@ def torch_convrot_bf16_block(
     decoded = (
         fast_inverse_convrot_rows(weight, scale, group_size=group_size).to(dtype=torch.bfloat16).contiguous().cpu()
     )
-    payload = bytes(decoded.view(torch.uint8).untyped_storage())
+    payload = _tensor_bytes(torch, decoded)
     expected = rows * columns * 2
     if len(payload) != expected:
         raise ConvRotNumericsError(f"serialized ConvRot BF16 block produced {len(payload)} bytes; expected {expected}")
