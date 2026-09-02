@@ -72,6 +72,24 @@ def _inverse_rows(torch: Any, qweight: Any, rowwise_scale: Any, matrix: Any, gro
     return torch.matmul(grouped, matrix.T).reshape_as(dequantized)
 
 
+def _fast_regular_hadamard(torch: Any, values: Any, group_size: int) -> Any:
+    """Apply the regular Hadamard in base-four stages without materializing a dense matmul."""
+
+    output = values.reshape(values.shape[0], -1, group_size)
+    stride = 1
+    while stride < group_size:
+        original_shape = output.shape
+        staged = output.reshape(*original_shape[:-1], group_size // (4 * stride), 4, stride)
+        a, b, c, d = staged.unbind(dim=-2)
+        ab = a + b
+        cd = c - d
+        ac = a - b
+        bd = c + d
+        output = torch.stack((ab + cd, ab - cd, ac + bd, bd - ac), dim=-2).mul_(0.5).reshape(original_shape)
+        stride *= 4
+    return output.reshape_as(values)
+
+
 def inverse_convrot_rows(qweight: Any, rowwise_scale: Any, *, group_size: int = 256) -> Any:
     """Inverse one already-bounded row block and return float32."""
 
@@ -80,6 +98,16 @@ def inverse_convrot_rows(qweight: Any, rowwise_scale: Any, *, group_size: int = 
     with torch.inference_mode():
         matrix = _regular_hadamard(torch, group_size, device=qweight.device)
         return _inverse_rows(torch, qweight, rowwise_scale, matrix, group_size)
+
+
+def fast_inverse_convrot_rows(qweight: Any, rowwise_scale: Any, *, group_size: int = 256) -> Any:
+    """Inverse one bounded row block in O(n log n) base-four Hadamard stages."""
+
+    torch = _torch()
+    _validate_inputs(torch, qweight, rowwise_scale, group_size)
+    with torch.inference_mode():
+        dequantized = qweight.to(dtype=torch.float32).mul_(rowwise_scale)
+        return _fast_regular_hadamard(torch, dequantized, group_size)
 
 
 def inverse_convrot_to_bf16(
@@ -109,4 +137,9 @@ def inverse_convrot_to_bf16(
     return dense
 
 
-__all__ = ["inverse_convrot_rows", "inverse_convrot_to_bf16", "regular_hadamard"]
+__all__ = [
+    "fast_inverse_convrot_rows",
+    "inverse_convrot_rows",
+    "inverse_convrot_to_bf16",
+    "regular_hadamard",
+]
