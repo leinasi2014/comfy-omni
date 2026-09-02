@@ -9,8 +9,18 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_INTERNAL_PREFIXES = {
+    "src/comfy_omni/domain/normalization.py": (),
     "src/comfy_omni/domain/checkpoints.py": (),
+    "src/comfy_omni/artifacts/build_identity.py": ("comfy_omni.domain",),
+    "src/comfy_omni/artifacts/normalization.py": (
+        "comfy_omni.artifacts",
+        "comfy_omni.domain",
+    ),
     "src/comfy_omni/artifacts/safetensors.py": ("comfy_omni.domain",),
+    "src/comfy_omni/conversion/normalization/text_encoder.py": (
+        "comfy_omni.artifacts",
+        "comfy_omni.domain",
+    ),
     "src/comfy_omni/conversion/inspection/checkpoint.py": (
         "comfy_omni.artifacts",
         "comfy_omni.domain",
@@ -19,7 +29,12 @@ EXPECTED_INTERNAL_PREFIXES = {
         "comfy_omni.conversion",
         "comfy_omni.domain",
     ),
+    "src/comfy_omni/application/normalization.py": (
+        "comfy_omni.artifacts",
+        "comfy_omni.conversion",
+    ),
     "src/comfy_omni/cli/commands/inspect.py": ("comfy_omni.application",),
+    "src/comfy_omni/cli/commands/normalize.py": ("comfy_omni.application",),
 }
 FORBIDDEN_OPTIONAL_IMPORTS = ("fastapi", "torch", "vllm", "vllm_omni")
 

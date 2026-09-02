@@ -46,10 +46,11 @@ and its distinction between
 ## Project status
 
 **Early refactoring / walking-skeleton stage.** The repository now has installable distribution
-metadata, a lightweight package import, a strict metadata-only `comfy-omni inspect` command, CLI
-identity (`--help` and `--version`), and an empty idempotent plugin entry. No conversion command,
-HTTP API, runtime architecture, or host patch has migrated yet. Do not treat checkpoint recognition
-as a production runtime or compatibility claim.
+metadata, a lightweight package import, strict metadata-only checkpoint inspection, and one
+digest-pinned text-encoder normalization command with no-overwrite publication and a provenance
+receipt. The plugin entry remains empty and idempotent. No general conversion pipeline, HTTP API,
+runtime architecture, or host patch has migrated yet. Do not treat these offline artifact operations
+as a production runtime or broad compatibility claim.
 
 Except for the audited inspection slice, the existing H3 implementation remains in the legacy
 workspace while code origin, licensing, contracts, tests, and module ownership are audited before
@@ -149,12 +150,15 @@ python -m pip install -e ".[dev]"
 comfy-omni --help
 comfy-omni --version
 comfy-omni inspect CHECKPOINT.safetensors --json
+comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
 ```
 
-This exposes project identity plus strict header-only inspection; it does not load tensor payloads
-or provide legacy conversion/runtime commands. Fast deterministic repository checks run locally and
-in CI as their milestones land; GPU and runtime acceptance runs only on the designated server
-against digest-bound assets. A deferred, missing, or differently targeted check is not a pass.
+This exposes project identity, strict header-only inspection, and the one exact normalization profile
+documented in [`docs/migration/text-encoder-normalization.md`](docs/migration/text-encoder-normalization.md).
+It does not load tensors or provide general legacy conversion/runtime commands. Fast deterministic
+repository checks run locally and in CI as their milestones land; GPU and runtime acceptance runs
+only on the designated server against digest-bound assets. A deferred, missing, or differently
+targeted check is not a pass.
 
 <!-- README_SYNC: contributing -->
 ## Contributing

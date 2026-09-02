@@ -141,7 +141,7 @@ def test_nonconformant_text_encoder_requires_digest_bound_normalization() -> Non
         "in_place_mutation": False,
         "generic_trailing_tolerance": False,
         "expected_derived_bytes": 15_683_129_587,
-        "expected_derived_sha256": None,
+        "expected_derived_sha256": "a166c7bbbe66a22065159e478335fee4a633c4a3e3bb34c8e8ac4cc91bf4996f",
     }
 
 
