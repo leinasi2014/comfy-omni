@@ -2,6 +2,8 @@
 
 Derived from Apache-2.0 h3-forge fsops.py blob ae40e46eef808f979ee085e806f2380e50b6c01d
 at commit e9cb011d00b028c149db3978de246c54f6e34acc.
+The pinned exclusive-copy primitive also retains package_assembler.py blob
+e64558f1d3bb6e1ee6f714b70e783d9df907f9ce behavior from that commit.
 
 This is the convergence target for the six duplicated fs/hash helper families
 (``native_export``, ``package_assembler``, ``vae_export``,
@@ -56,6 +58,7 @@ __all__ = [
     "FsopsMissingPathError",
     "FsopsModifiedError",
     "canonical_json",
+    "copy_file_pinned_exclusive",
     "fd_identity",
     "fsync_dir",
     "is_link",
@@ -402,6 +405,69 @@ def sha256_file_pinned(path: Path) -> tuple[str, int]:
     finally:
         os.close(descriptor)
     return digest.hexdigest(), opened.st_size
+
+
+def copy_file_pinned_exclusive(source: Path, destination: Path) -> tuple[str, int]:
+    """Copy one stable regular file to a fresh path and verify the result.
+
+    The source is held open and identity-checked across the bounded streaming
+    pass. The destination is created with ``O_EXCL``, fsync-ed, path-identity
+    checked, closed, and independently rehashed before success is returned.
+    A failed copy deliberately leaves its exclusive partial destination for
+    the owning higher-level staging transaction to diagnose.
+    """
+
+    source = reject_linked_ancestors(source)
+    reject_linked_ancestors(destination.parent)
+    source_descriptor, source_status = _open_pinned(source)
+    write_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    try:
+        destination_descriptor = os.open(destination, write_flags, _WRITE_MODE)
+    except FileExistsError as exc:
+        os.close(source_descriptor)
+        error = FsopsExistsError(f"refusing to overwrite existing file: {destination}")
+        error.path = destination
+        raise error from exc
+    except OSError as exc:
+        os.close(source_descriptor)
+        error = FsopsIoError(f"exclusive copy target create failed: {destination}: {exc}")
+        error.path = destination
+        raise error from exc
+
+    digest = hashlib.sha256()
+    try:
+        source_identity = fd_identity(source_status)
+        for chunk in _iter_pinned_chunks(source_descriptor, source, source_status.st_size):
+            digest.update(chunk)
+            remaining = memoryview(chunk)
+            while remaining:
+                written = os.write(destination_descriptor, remaining)
+                if written <= 0:
+                    raise OSError("short write while copying pinned file")
+                remaining = remaining[written:]
+        os.fsync(destination_descriptor)
+        destination_status = os.fstat(destination_descriptor)
+        if not stat.S_ISREG(destination_status.st_mode):
+            raise _modified_error(destination, f"copy target changed type while being written: {destination}")
+        destination_path_status = destination.lstat()
+        if _path_identity(destination_path_status) != _path_identity(destination_status):
+            raise _modified_error(destination, f"copy target path changed while being written: {destination}")
+        _verify_pinned_unchanged(source, source_descriptor, source_identity)
+    except FsopsError:
+        raise
+    except OSError as exc:
+        error = FsopsIoError(f"pinned file copy failed: {source} -> {destination}: {exc}")
+        error.path = destination
+        raise error from exc
+    finally:
+        os.close(destination_descriptor)
+        os.close(source_descriptor)
+
+    copied_sha256 = digest.hexdigest()
+    observed_sha256, observed_size = sha256_file_pinned(destination)
+    if (observed_sha256, observed_size) != (copied_sha256, source_status.st_size):
+        raise _modified_error(destination, f"copy target failed independent readback: {destination}")
+    return observed_sha256, observed_size
 
 
 def is_link(path: Path) -> bool:
