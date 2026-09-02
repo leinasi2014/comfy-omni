@@ -27,6 +27,8 @@ evidence are migration inputs, not part of this Git root unless a reviewed chang
 
 ## Non-negotiable boundaries
 
+`DOCKER_FIRST_POLICY: v1`
+
 - Docker is the execution boundary for project Python, tests, lint, builds, packaging, downloads,
   conversion, and inference. Missing Docker is an unavailable gate, never a host-Python fallback.
 - Hosts may edit/read files and use Git/GitHub, Docker/Compose, SSH/SCP, and read-only diagnostics.
