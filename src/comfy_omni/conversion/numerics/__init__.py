@@ -8,6 +8,7 @@ from comfy_omni.conversion.numerics.reference import (
     row_blocks,
 )
 from comfy_omni.conversion.numerics.torch_backend import (
+    fast_inverse_convrot_rows,
     inverse_convrot_rows,
     inverse_convrot_to_bf16,
     regular_hadamard,
@@ -16,6 +17,7 @@ from comfy_omni.conversion.numerics.torch_backend import (
 __all__ = [
     "ConvRotNumericsError",
     "apply_regular_hadamard_reference",
+    "fast_inverse_convrot_rows",
     "inverse_convrot_reference",
     "inverse_convrot_rows",
     "inverse_convrot_to_bf16",
