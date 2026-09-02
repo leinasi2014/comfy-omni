@@ -430,9 +430,7 @@ def _verify(args: argparse.Namespace) -> dict[str, Any]:
         "runtime configuration drift",
     )
     index = _json((args.output / "model.safetensors.index.json").read_bytes())
-    expected_weight_map = {
-        name: shard["name"] for shard in plan["shards"] for name in shard["tensor_names"]
-    }
+    expected_weight_map = {name: shard["name"] for shard in plan["shards"] for name in shard["tensor_names"]}
     _require(
         index == {"metadata": {"total_size": TARGET_PAYLOAD_BYTES}, "weight_map": expected_weight_map},
         "index drift",
