@@ -107,10 +107,36 @@ class NativePackagePlan:
         return value
 
 
+@dataclass(frozen=True)
+class PackageSourceVerification:
+    """Portable result of re-reading every source named by a package plan."""
+
+    schema: str
+    plan_content_sha256: str
+    tool: ToolIdentity
+    component_count: int
+    file_count: int
+    total_bytes: int
+    files_sha256: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "components": self.component_count,
+            "file_count": self.file_count,
+            "files_sha256": self.files_sha256,
+            "plan_content_sha256": self.plan_content_sha256,
+            "schema": self.schema,
+            "status": "VERIFIED",
+            "tool": self.tool.to_dict(),
+            "total_bytes": self.total_bytes,
+        }
+
+
 __all__ = [
     "ComponentFile",
     "ComponentReceipt",
     "NativePackagePlan",
     "PackageComponentPlan",
     "PackageFilePlan",
+    "PackageSourceVerification",
 ]
