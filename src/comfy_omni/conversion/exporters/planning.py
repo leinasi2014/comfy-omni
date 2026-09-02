@@ -111,9 +111,7 @@ def _validate_authority(
         "recomputed_schema_sha256": (expected, observed_schema),
     }
     mismatches = {
-        name: {"expected": pair[0], "observed": pair[1]}
-        for name, pair in checks.items()
-        if pair[0] != pair[1]
+        name: {"expected": pair[0], "observed": pair[1]} for name, pair in checks.items() if pair[0] != pair[1]
     }
     if mismatches:
         _fail("source census does not match the exact contract", "contract-authorization", mismatches=mismatches)

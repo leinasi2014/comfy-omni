@@ -8,9 +8,7 @@ e9cb011d00b028c149db3978de246c54f6e34acc (blob
 from __future__ import annotations
 
 
-def grouped_to_qkv_row_indices(
-    *, num_query_groups: int, heads_per_group: int, head_dim: int
-) -> tuple[int, ...]:
+def grouped_to_qkv_row_indices(*, num_query_groups: int, heads_per_group: int, head_dim: int) -> tuple[int, ...]:
     """Return grouped-source rows in runtime ``Q | K | V`` order."""
 
     if num_query_groups <= 0 or heads_per_group <= 0 or head_dim <= 0:
@@ -27,9 +25,7 @@ def grouped_to_qkv_row_indices(
     return tuple(query + key + value)
 
 
-def qkv_to_grouped_row_indices(
-    *, num_query_groups: int, heads_per_group: int, head_dim: int
-) -> tuple[int, ...]:
+def qkv_to_grouped_row_indices(*, num_query_groups: int, heads_per_group: int, head_dim: int) -> tuple[int, ...]:
     """Return runtime-QKV rows in grouped checkpoint order."""
 
     forward = grouped_to_qkv_row_indices(
