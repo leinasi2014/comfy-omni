@@ -1,9 +1,27 @@
 # ComfyOmni（原 h3-forge）合并后重构与开源整理方案
 
-状态：仓库事实审查修订版
+状态：执行中的公开仓路线图（历史基线已由下述进展快照校正）
 
 日期：2026-09-02
 适用范围：M0.5 单仓单插件整合完成后的 `h3-forge` 主仓，以及向 `ComfyOmni` 的公开改名
+
+## 0. 当前进展快照
+
+截至候选 `1a8ce636aa06e7c60b0166afc1479881db0a9d28`，本文件后续章节中的若干“待迁移”描述已经成为
+历史基线，不能继续当作当前仓库事实：
+
+- 独立公开仓、GitHub slug、distribution、Python 包、CLI 与 entry point 已统一为 `comfy-omni` /
+  `comfy_omni`；`src/comfy_omni/` 是标准 src layout，不是重复产品目录；
+- `AGENTS.md` 已精简为规则索引，稳定交付协议在 `docs/development/delivery.md`，GitHub Issue 是唯一
+  活任务状态源，开发遵循单一产品 WIP 与 RED → GREEN → REFACTOR；
+- GitHub quality、package、documentation 全部由 Docker 执行，宿主 Python 与服务器宿主安装被禁止；
+- M2 已完成精确合同/模板授权、932 张量 Ref2VA 只读 plan、ConvRot 数值 backend，以及 copy-only 的
+  held-descriptor safetensors 事务；934 张量 10Eros 仍保持未授权、fail closed；
+- 当前 copy-only 事务不是完整转换器。下一步是把 inverse-ConvRot 与 QKV producer 接到已验收事务，
+  携带外部合同快照，然后进行完整 Ref2VA 转换和原生宿主加载验收。
+
+以下长篇方案仍保留架构理由、来源审计与后续阶段工作；凡与本快照或稳定开发文档冲突，以当前源码、
+`docs/development/`、GitHub Issue 和已合并证据为准。
 
 ## 1. 前提与定位
 

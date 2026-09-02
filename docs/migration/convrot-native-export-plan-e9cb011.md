@@ -103,16 +103,23 @@ The comparison evidence is retained on `srv-00` at
 It was produced in a network-disabled container with the model root mounted read-only. This is
 header evidence only, not conversion or inference acceptance.
 
-## Remaining issue #8 slices
+## Issue #8 progress and remaining slices
 
-1. Implement the lazy-Torch numerical backend and characterize inverse ConvRot and row-chunk limits.
-2. Implement exclusive staging, streaming shard writing, source re-verification, independent output
-   verification, and manifest-last atomic publication.
-3. Restore the legacy `export-native` CLI only when the complete transaction exists; do not expose a
-   command that sounds like an export but only produces a plan.
+The lazy-Torch numerical backend is accepted at `b0b757a696d9`. The held-source, deterministic
+safetensors writer, independent verifier, and manifest-last transaction are accepted for
+`copy-raw` at `1a8ce636aa06`. Remaining work is:
+
+1. Add inverse-ConvRot and QKV-reorder payload producers to the accepted transaction without
+   weakening its source/action/shard binding.
+2. Carry and verify external contract snapshots before executing the Ref2VA plan.
+3. Restore the legacy `export-native` CLI only when all operations in the authorized plan execute;
+   do not expose a command that sounds like a full export while it is copy-only.
 4. Run an authorized full Ref2VA conversion in a resource-bounded Docker container on `srv-00`, then
    bind numerical/output evidence to the source, converter image, and Git commit.
 5. Keep the primary 10Eros path fail-closed until its independent contract is reviewed and pinned.
 
 The completed Docker evidence for this planning slice is indexed in
 [`docs/evidence/convrot-plan-ed08abbe2df5.md`](../evidence/convrot-plan-ed08abbe2df5.md).
+The transaction design and evidence are indexed in
+[`docs/migration/convrot-native-export-transaction-e9cb011.md`](convrot-native-export-transaction-e9cb011.md)
+and [`docs/evidence/convrot-transaction-1a8ce636aa06.md`](../evidence/convrot-transaction-1a8ce636aa06.md).
