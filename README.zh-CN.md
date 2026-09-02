@@ -44,13 +44,15 @@ import package 应当是合法标识符。GitHub 可能把只有一个子目录�
 ## 项目状态
 
 **早期重构／walking skeleton 阶段。** 当前仓库已经具备可安装的 distribution 元数据、轻量包导入、
-严格且只读 metadata 的 checkpoint 检查，以及一个带摘要固定、禁止覆盖发布和溯源 receipt 的文本
-编码器规范化命令。插件入口仍为空且保持幂等。目前尚未迁移通用转换流水线、HTTP API、运行时架构或
-宿主 patch；这些离线制品操作不能作为生产运行时或广泛兼容性声明使用。
+严格且只读 metadata 的 checkpoint 检查、一个摘要固定的文本编码器规范化命令，以及首个不可变原生
+源合同工作流（`scan`、`draft`、人工复核 `pin` 和显式 `list`）。合同草稿与快照会绑定源文件、census、
+模板、工具、复核者和证据摘要，不依赖可变注册表状态。插件入口仍为空且保持幂等。目前尚未迁移通用
+转换流水线、HTTP API、运行时架构或宿主 patch；这些离线制品操作不能作为生产运行时或广泛兼容性
+声明使用。
 
-除已审计的 inspection 切片外，现有 H3 实现暂时保留在旧工作区；代码只有在完成来源、许可证、合同、
-测试和模块归属审计后才会迁移。摘要固定的服务器测试模型集现已冻结，外部资产正在准备；在取得对应
-运行时证据前，当前候选仍不能视为已验收或可发布。
+除已审计的 inspection、文本编码器规范化和原生源合同切片外，现有 H3 实现暂时保留在旧工作区；代码
+只有在完成来源、许可证、合同、测试和模块归属审计后才会迁移。摘要固定的服务器测试模型集现已冻结，
+外部资产正在准备；在取得对应运行时证据前，当前候选仍不能视为已验收或可发布。
 
 <!-- README_SYNC: goals -->
 ## 设计目标
@@ -159,13 +161,20 @@ PowerShell 用户使用 `scripts/docker.ps1` 的同名 action。模型／checkpo
 ```text
 comfy-omni inspect CHECKPOINT.safetensors --json
 comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
+comfy-omni contract scan SOURCE.safetensors --json
+comfy-omni contract draft SOURCE.safetensors --generated-by OPERATOR -o DRAFT.json
+comfy-omni contract pin DRAFT.json --name PROFILE --reviewer REVIEWER \
+  --evidence REVIEW.md --contract-dir CONTRACTS
+comfy-omni contract list --contract-dir CONTRACTS --json
 ```
 
-目前提供项目身份、严格的 header-only inspection，以及
-[`docs/migration/text-encoder-normalization.md`](docs/migration/text-encoder-normalization.md) 中记录的唯一
-精确规范化 profile；它不会加载 tensor，也尚未提供通用旧转换／运行时命令。快速、确定性的仓库检查
-会随里程碑在本地和 CI 的 Docker 中执行；GPU 与运行时验收只在指定服务器的 Docker 中针对摘要绑定
-资产运行。延后、缺失或目标不同的检查都不能伪装成通过。
+目前提供项目身份、严格的 header-only inspection、
+[唯一精确规范化 profile](docs/migration/text-encoder-normalization.md)，以及
+[已审计的不可变合同工作流](docs/migration/contract-workflows-e9cb011.md)。合同命令会计算源文件摘要，但
+不会物化 tensor payload，也不会导入 Torch／vLLM。只有调用方显式传入 store 时外部合同才可见；旧环境
+变量仅由 CLI 兼容边界读取。通用旧转换／运行时命令仍不可用。快速、确定性的仓库检查在本地和 CI 的
+Docker 中执行；GPU 与运行时验收只在指定服务器的 Docker 中针对摘要绑定资产运行。延后、缺失或目标
+不同的检查都不能伪装成通过。
 
 <!-- README_SYNC: contributing -->
 ## 参与贡献

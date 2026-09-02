@@ -50,7 +50,7 @@ comfy_omni = "comfy_omni.plugin:register"
 where = ["src"]
 
 [tool.setuptools.package-data]
-comfy_omni = ["py.typed"]
+comfy_omni = ["py.typed", "resources/contracts/*.json"]
 
 [tool.ruff]
 line-length = 120

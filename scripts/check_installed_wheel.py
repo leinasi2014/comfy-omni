@@ -20,6 +20,7 @@ def main() -> int:
     import comfy_omni  # noqa: F401
     import comfy_omni.plugin  # noqa: F401
     from comfy_omni.artifacts.build_identity import installed_tool_identity
+    from comfy_omni.contracts import ARCHITECTURE_TEMPLATES, COMPILE_TIME_CATALOG
 
     entry_points = importlib.metadata.entry_points(group="vllm_omni.general_plugins")
     assert any(entry_point.name == "comfy_omni" for entry_point in entry_points)
@@ -27,11 +28,14 @@ def main() -> int:
     assert identity.distribution == "comfy-omni"
     assert len(identity.source_commit) == 40
     assert len(identity.wheel_sha256) == 64
+    assert len(ARCHITECTURE_TEMPLATES) == 4
+    assert len(COMPILE_TIME_CATALOG.records) == 3
     assert "torch" not in sys.modules
     assert "vllm" not in sys.modules
 
     _run_cli("--help")
     _run_cli("--version")
+    _run_cli("contract", "list", "--json")
     with tempfile.TemporaryDirectory() as directory:
         checkpoint = Path(directory) / "empty.safetensors"
         header = json.dumps({}).encode("utf-8")

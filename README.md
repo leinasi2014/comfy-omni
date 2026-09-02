@@ -46,17 +46,19 @@ and its distinction between
 ## Project status
 
 **Early refactoring / walking-skeleton stage.** The repository now has installable distribution
-metadata, a lightweight package import, strict metadata-only checkpoint inspection, and one
-digest-pinned text-encoder normalization command with no-overwrite publication and a provenance
-receipt. The plugin entry remains empty and idempotent. No general conversion pipeline, HTTP API,
-runtime architecture, or host patch has migrated yet. Do not treat these offline artifact operations
-as a production runtime or broad compatibility claim.
+metadata, a lightweight package import, strict metadata-only checkpoint inspection, one
+digest-pinned text-encoder normalization command, and the first immutable native-source contract
+workflow (`scan`, `draft`, human-reviewed `pin`, and explicit `list`). Contract drafts and snapshots
+bind source, census, template, tool, reviewer, and evidence digests without mutable registry state.
+The plugin entry remains empty and idempotent. No general conversion pipeline, HTTP API, runtime
+architecture, or host patch has migrated yet. Do not treat these offline artifact operations as a
+production runtime or broad compatibility claim.
 
-Except for the audited inspection slice, the existing H3 implementation remains in the legacy
-workspace while code origin, licensing, contracts, tests, and module ownership are audited before
-migration. The digest-pinned server model set is now frozen and its external assets are being
-prepared, but the current candidate is not accepted or releasable until the corresponding runtime
-evidence exists.
+Except for the audited inspection, text-encoder normalization, and native-source contract slices,
+the existing H3 implementation remains in the legacy workspace while code origin, licensing,
+contracts, tests, and module ownership are audited before migration. The digest-pinned server model
+set is now frozen and its external assets are being prepared, but the current candidate is not
+accepted or releasable until the corresponding runtime evidence exists.
 
 <!-- README_SYNC: goals -->
 ## Design goals
@@ -172,12 +174,20 @@ installation or execution instructions:
 ```text
 comfy-omni inspect CHECKPOINT.safetensors --json
 comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
+comfy-omni contract scan SOURCE.safetensors --json
+comfy-omni contract draft SOURCE.safetensors --generated-by OPERATOR -o DRAFT.json
+comfy-omni contract pin DRAFT.json --name PROFILE --reviewer REVIEWER \
+  --evidence REVIEW.md --contract-dir CONTRACTS
+comfy-omni contract list --contract-dir CONTRACTS --json
 ```
 
-This exposes project identity, strict header-only inspection, and the one exact normalization profile
-documented in [`docs/migration/text-encoder-normalization.md`](docs/migration/text-encoder-normalization.md).
-It does not load tensors or provide general legacy conversion/runtime commands. Fast deterministic
-repository checks run in Docker locally and in CI as their milestones land; GPU and runtime
+This exposes project identity, strict header-only inspection, the
+[one exact normalization profile](docs/migration/text-encoder-normalization.md), and the
+[audited immutable contract workflow](docs/migration/contract-workflows-e9cb011.md). Contract
+commands hash source files but do not materialize tensor payloads or import Torch/vLLM. External
+contracts are visible only when a caller passes a store explicitly; the legacy environment variable
+is read only by the CLI compatibility boundary. General legacy conversion/runtime commands remain
+unavailable. Fast deterministic repository checks run in Docker locally and in CI; GPU and runtime
 acceptance runs only in Docker on the designated server against digest-bound assets. A deferred,
 missing, or differently targeted check is not a pass.
 
