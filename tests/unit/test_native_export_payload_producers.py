@@ -86,7 +86,7 @@ def _base_plan(
     source_digest = hashlib.sha256(source.read_bytes()).hexdigest()
     targets = tuple(sorted(item.target_name for item in actions if item.target_name is not None))
     draft = NativeExportPlan(
-        schema="comfy_omni.native_export.plan/v1",
+        schema="comfy_omni.native_export.plan/v2",
         output_schema="h3-comfy-int8-export/v2",
         component="transformer",
         profile="dense-bf16-online-int8",
@@ -117,7 +117,17 @@ def _qkv_fixture(tmp_path: Path) -> tuple[Path, NativeExportPlan, tuple[bytes, .
     rows = tuple(bytes((row, row, row, row)) for row in range(6))
     source = tmp_path / "qkv.safetensors"
     _write_safetensors(source, ((QKV_NAME, "BF16", (6, 2), b"".join(rows)),))
-    action = TensorAction(QKV_NAME, QKV_NAME, "BF16", "BF16", (6, 2), 24, 24, OP_COPY_QKV_TO_GROUPED)
+    action = TensorAction(
+        QKV_NAME,
+        QKV_NAME,
+        "BF16",
+        "BF16",
+        (6, 2),
+        24,
+        24,
+        OP_COPY_QKV_TO_GROUPED,
+        QKV_NAME.removesuffix(".weight"),
+    )
     return source, _base_plan(source, (action,), largest=24, payload_bytes=24), rows
 
 
@@ -183,7 +193,7 @@ def _snapshot_for(source: Path, directory: Path) -> Any:
     contract = NativeSourceContract(
         "external-transformer-v1",
         "transformer",
-        932,
+        1,
         len(template.convrot_table()),
         "c" * 64,
     )
@@ -267,6 +277,7 @@ def test_execution_rejects_qkv_permutation_digest_drift_before_publication(tmp_p
 def test_external_contract_snapshot_is_revalidated_carried_and_receipted(tmp_path: Path) -> None:
     source, plan, _ = _qkv_fixture(tmp_path)
     snapshot = _snapshot_for(source, tmp_path / "contracts")
+    template = ARCHITECTURE_TEMPLATES["h3-transformer-50l-convrot"]
     plan = replace(
         plan,
         source_contract="external-transformer-v1",
@@ -274,6 +285,9 @@ def test_external_contract_snapshot_is_revalidated_carried_and_receipted(tmp_pat
         source_contract_schema_sha256="c" * 64,
         source_snapshot_manifest_sha256=snapshot.manifest_sha256,
         source_snapshot_file_sha256=hashlib.sha256(snapshot.payload).hexdigest(),
+        template_name=template.template_name,
+        template_version=template.template_version,
+        template_sha256=template_digest(template),
     )
     plan = _digest_plan(plan)
 
@@ -314,6 +328,8 @@ def test_snapshot_authority_mismatch_and_compile_time_snapshot_fail_closed(tmp_p
         source_contract_schema_sha256="c" * 64,
         source_snapshot_manifest_sha256=snapshot.manifest_sha256,
         source_snapshot_file_sha256="0" * 64,
+        template_name="h3-transformer-50l-convrot",
+        template_sha256=template_digest(ARCHITECTURE_TEMPLATES["h3-transformer-50l-convrot"]),
     )
     external = _digest_plan(external)
     with pytest.raises(ContractError, match="snapshot"):

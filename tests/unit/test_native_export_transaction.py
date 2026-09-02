@@ -50,7 +50,7 @@ def _bound_plan(source: Path) -> NativeExportPlan:
     source_digest = hashlib.sha256(source.read_bytes()).hexdigest()
     qkv_digest = hashlib.sha256(fileops.canonical_json([0])).hexdigest()
     draft = NativeExportPlan(
-        schema="comfy_omni.native_export.plan/v1",
+        schema="comfy_omni.native_export.plan/v2",
         output_schema="h3-comfy-int8-export/v2",
         component="transformer",
         profile="dense-bf16-online-int8",

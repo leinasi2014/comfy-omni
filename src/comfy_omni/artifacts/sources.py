@@ -121,12 +121,30 @@ class SafeTensorSources:
     def iter_raw(self, tensor: LocatedTensor, *, chunk_bytes: int = HASH_CHUNK_BYTES) -> Iterable[bytes]:
         """Yield one tensor from its held descriptor without crossing its byte range."""
 
-        if type(chunk_bytes) is not int or chunk_bytes <= 0:
-            raise ContractError("source payload chunk size must be a positive integer")
         start, end = tensor.descriptor.data_offsets
+        yield from self.iter_raw_range(tensor, 0, end - start, chunk_bytes=chunk_bytes)
+
+    def iter_raw_range(
+        self,
+        tensor: LocatedTensor,
+        offset: int,
+        length: int,
+        *,
+        chunk_bytes: int = HASH_CHUNK_BYTES,
+    ) -> Iterable[bytes]:
+        """Yield one validated byte subrange through the held source descriptor."""
+
+        if any(type(value) is not int for value in (offset, length, chunk_bytes)):
+            raise ContractError("source payload range values must be integers")
+        if offset < 0 or length < 0 or chunk_bytes <= 0:
+            raise ContractError("source payload range must be non-negative with a positive chunk size")
+        start, end = tensor.descriptor.data_offsets
+        tensor_bytes = end - start
+        if offset > tensor_bytes or length > tensor_bytes - offset:
+            raise ContractError(f"source payload range exceeds tensor {tensor.descriptor.name!r}")
         source = self._sources[tensor.source_index]
-        source.stream.seek(tensor.payload_offset + start)
-        remaining = end - start
+        source.stream.seek(tensor.payload_offset + start + offset)
+        remaining = length
         while remaining:
             chunk = source.stream.read(min(chunk_bytes, remaining))
             if not chunk:

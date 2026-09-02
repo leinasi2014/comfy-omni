@@ -33,7 +33,9 @@ EXPECTED_INTERNAL_PREFIXES = {
     "src/comfy_omni/conversion/exporters/execution.py": (
         "comfy_omni.artifacts",
         "comfy_omni.contracts",
+        "comfy_omni.conversion.contract_workflows",
         "comfy_omni.conversion.exporters",
+        "comfy_omni.conversion.numerics",
         "comfy_omni.conversion.packaging",
         "comfy_omni.domain",
     ),
