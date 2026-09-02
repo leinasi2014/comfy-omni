@@ -41,8 +41,10 @@ the loader separately re-derives and checks each legacy template digest.
    uses sorted compact UTF-8 JSON with one trailing newline.
 3. L1 family routing and L2 classification are advisory. Only one exact L3 template match can
    authorize drafting.
-4. ConvRot marker values are read before ordinary tensor payload access. Marker-free sources with
-   quantization scales or `I8` tensors fail closed.
+4. ConvRot marker values are read before ordinary tensor payload access. Only markers that explicitly
+   declare `format=int8_tensorwise` and `convrot=true` enter ConvRot discovery. Other valid declarations
+   fail closed with a bounded format census; marker-free sources with quantization scales or `I8`
+   tensors also fail closed.
 5. Drafts bind source paths, sizes and SHA-256 values, the census digest, template name/version/digest,
    and the installed generator identity. Draft files are created exclusively and never rewritten.
 6. Pinning re-reads canonical draft bytes, re-hashes every source through a held-descriptor protocol,
@@ -81,6 +83,14 @@ argument; a future `COMFY_OMNI_CONTRACT_DIR` alias requires a separate compatibi
 - Treating weak Oracle family guesses or advisory classifiers as authorization.
 - Copying unrelated h3-forge Oracle, export, plugin, server, or runtime modules into this slice.
 - Mutable registry files, overwrite-in-place publication, and path-only evidence references.
+
+## Server-discovered boundary clarification
+
+The pinned NVFP4 text encoder on `srv-00` contains 350 `nvfp4` markers plus one non-ConvRot
+`int8_tensorwise` embedding marker. It is a runtime validation asset, not one of this slice's strict
+ConvRot or marker-free BF16 source formats. The scanner therefore rejects it explicitly with
+`unsupported-comfy-quant-storage`; this does not claim that the later runtime loader supports or
+rejects NVFP4 execution. Runtime loading remains a separate GPU acceptance gate.
 
 ## Target ownership and dependency direction
 

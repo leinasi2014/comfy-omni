@@ -209,6 +209,37 @@ def _observed_group_size_overrides(
     return overrides, failures
 
 
+def _unsupported_marker_declarations(
+    marker_payloads: Mapping[str, bytes],
+) -> tuple[dict[str, int], tuple[str, ...]] | None:
+    """Return bounded evidence for valid non-ConvRot marker declarations.
+
+    Invalid or structurally ambiguous payloads return ``None`` so the existing
+    strict ConvRot decoder remains their fail-closed authority. A syntactically
+    valid declaration enters ConvRot discovery only when it explicitly carries
+    ``format=int8_tensorwise`` and ``convrot=true``.
+    """
+
+    census: dict[str, int] = {}
+    unsupported: list[str] = []
+    for name, raw in sorted(marker_payloads.items()):
+        try:
+            payload = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict) or not isinstance(payload.get("format"), str):
+            return None
+        marker_format = payload["format"]
+        if marker_format == "int8_tensorwise" and payload.get("convrot") is True:
+            continue
+        declaration = "int8_tensorwise/non-convrot" if marker_format == "int8_tensorwise" else marker_format
+        census[declaration] = census.get(declaration, 0) + 1
+        unsupported.append(name)
+    if not unsupported:
+        return None
+    return dict(sorted(census.items())), tuple(unsupported)
+
+
 def _marker_free_storage_check(descriptors: Sequence[TensorDescriptor]) -> None:
     """A marker-free source cannot carry quantization leftovers (fail-closed)."""
 
@@ -234,6 +265,21 @@ def _discover_storage(
         _marker_free_storage_check(ordered)
         return (), STORAGE_BF16_PLAIN, ()
     payloads = {name: marker_payloads[name] for name in marker_names if name in marker_payloads}
+    declarations = _unsupported_marker_declarations(payloads) if len(payloads) == len(marker_names) else None
+    if declarations is not None:
+        declaration_census, unsupported = declarations
+        summary = ", ".join(f"{name}={count}" for name, count in declaration_census.items())
+        raise ContractScanError(
+            f"unsupported comfy_quant storage declarations: {summary}; contract workflows support "
+            "only strict int8 ConvRot markers and marker-free BF16 sources",
+            evidence={
+                "stage": "storage-observation",
+                "reason_code": "unsupported-comfy-quant-storage",
+                "marker_count": len(marker_names),
+                "marker_declaration_census": declaration_census,
+                "sample_unsupported_markers": list(unsupported[:8]),
+            },
+        )
     overrides, failures = _observed_group_size_overrides(payloads)
     try:
         groups = discover_convrot_groups(
