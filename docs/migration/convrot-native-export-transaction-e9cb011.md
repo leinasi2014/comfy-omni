@@ -1,13 +1,14 @@
 # ConvRot native-export transaction design
 
-Status: accepted copy-only transaction slice for issue #8
+Status: accepted historical copy-only transaction slice for issue #8; extended by the bounded
+producer slice at `1b2324ada243`
 
 Legacy authority: `h3-forge@e9cb011d00b028c149db3978de246c54f6e34acc`
 
-This slice establishes the filesystem and receipt transaction used by future ConvRot conversion.
-It does not yet materialize ConvRot weights or reorder QKV payloads. The executor supports only
-`copy-raw`; every numerical, QKV, marker, or scale operation fails closed until a later slice adds
-an explicitly tested producer.
+This slice established the filesystem and receipt transaction used by ConvRot conversion. At this
+historical candidate the executor supported only `copy-raw`; every numerical, QKV, marker, or scale
+operation failed closed. The later bounded producer design preserves this transaction and adds
+separately tested producers; this document remains the authority for transaction semantics.
 
 ## Audited source and module split
 
@@ -75,6 +76,8 @@ self-digest field is added.
 
 The accepted miniature transaction is recorded in
 [`docs/evidence/convrot-transaction-1a8ce636aa06.md`](../evidence/convrot-transaction-1a8ce636aa06.md).
-It proves the transaction and copy path only. Full inverse ConvRot, QKV reorder, external snapshot
-copying, CLI exposure, Ref2VA conversion, native runtime loading, LoRA, and A/B/A switching remain
+It proves the historical transaction and copy path only. Inverse ConvRot, QKV reorder, and external
+snapshot copying are subsequently accepted in
+[`docs/evidence/convrot-payload-producers-1b2324ada243.md`](../evidence/convrot-payload-producers-1b2324ada243.md).
+Full Ref2VA conversion, CLI exposure, native runtime loading, LoRA, and A/B/A switching remain
 separate acceptance boundaries.

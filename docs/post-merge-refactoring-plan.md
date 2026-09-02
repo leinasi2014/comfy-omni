@@ -7,7 +7,7 @@
 
 ## 0. 当前进展快照
 
-截至候选 `1a8ce636aa06e7c60b0166afc1479881db0a9d28`，本文件后续章节中的若干“待迁移”描述已经成为
+截至候选 `1b2324ada2432402a6071c9909abb77303107846`，本文件后续章节中的若干“待迁移”描述已经成为
 历史基线，不能继续当作当前仓库事实：
 
 - 独立公开仓、GitHub slug、distribution、Python 包、CLI 与 entry point 已统一为 `comfy-omni` /
@@ -15,10 +15,11 @@
 - `AGENTS.md` 已精简为规则索引，稳定交付协议在 `docs/development/delivery.md`，GitHub Issue 是唯一
   活任务状态源，开发遵循单一产品 WIP 与 RED → GREEN → REFACTOR；
 - GitHub quality、package、documentation 全部由 Docker 执行，宿主 Python 与服务器宿主安装被禁止；
-- M2 已完成精确合同/模板授权、932 张量 Ref2VA 只读 plan、ConvRot 数值 backend，以及 copy-only 的
-  held-descriptor safetensors 事务；934 张量 10Eros 仍保持未授权、fail closed；
-- 当前 copy-only 事务不是完整转换器。下一步是把 inverse-ConvRot 与 QKV producer 接到已验收事务，
-  携带外部合同快照，然后进行完整 Ref2VA 转换和原生宿主加载验收。
+- M2 已完成精确合同/模板授权、932 张量 Ref2VA 只读 plan、ConvRot 数值 backend、held-descriptor
+  safetensors 事务、所有计划 operation 的有界 producer 和外部合同快照携带；934 张量 10Eros 仍保持
+  未授权、fail closed；
+- 当前 producer 已通过 `srv-00` 的安装后 wheel、真实 Torch 与独立字节验证，但仍是有界合成证据。
+  下一步是完整 Ref2VA 转换、CLI 接入和原生宿主加载验收。
 
 以下长篇方案仍保留架构理由、来源审计与后续阶段工作；凡与本快照或稳定开发文档冲突，以当前源码、
 `docs/development/`、GitHub Issue 和已合并证据为准。

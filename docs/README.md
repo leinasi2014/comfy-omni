@@ -11,6 +11,8 @@
 - [Immutable contract workflow migration ledger](migration/contract-workflows-e9cb011.md)
 - [ConvRot native-export planning design](migration/convrot-native-export-plan-e9cb011.md)
 - [ConvRot numerical backend design](migration/convrot-numerics-e9cb011.md)
+- [ConvRot bounded payload-producer design](migration/convrot-payload-producers-e9cb011.md)
+- [Public acceptance evidence](evidence/README.md)
 
 This directory is the documentation root for the new ComfyOmni project skeleton. Historical
 `h3-forge` documents remain in the legacy repository until their authority and licensing
