@@ -15,7 +15,6 @@ keywords = ["comfyui", "checkpoint", "conversion", "omni", "vllm"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Environment :: Console",
-  "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
@@ -63,4 +62,3 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
-
