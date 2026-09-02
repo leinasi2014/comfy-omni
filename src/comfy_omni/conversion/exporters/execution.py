@@ -264,7 +264,9 @@ def _validate_plan(
     sources: SafeTensorSources,
 ) -> tuple[dict[str, TensorAction], dict[str, Any]]:
     _bind_sources(plan, sources)
-    validate_qkv_layout(plan.qkv_layout)
+    qkv_operations = {OP_COPY_QKV_TO_GROUPED, OP_INVERSE_CONVROT_BF16_QKV_TO_GROUPED}
+    if any(action.operation in qkv_operations for action in plan.actions):
+        validate_qkv_layout(plan.qkv_layout)
     if len(plan.actions) != len(sources.tensors):
         _fail("native export action coverage is incomplete", "action-binding")
     actions: dict[str, TensorAction] = {}
