@@ -10,11 +10,29 @@ PACKAGE = ROOT / "src" / "comfy_omni"
 EXPECTED_INTERNAL_PREFIXES = {
     "src/comfy_omni/domain/qkv.py": (),
     "src/comfy_omni/contracts/conversion.py": ("comfy_omni.contracts",),
+    "src/comfy_omni/artifacts/safetensors_writer.py": (
+        "comfy_omni.artifacts",
+        "comfy_omni.contracts",
+        "comfy_omni.domain",
+    ),
     "src/comfy_omni/conversion/exporters/models.py": (),
     "src/comfy_omni/conversion/exporters/planning.py": (
         "comfy_omni.artifacts",
         "comfy_omni.contracts",
         "comfy_omni.conversion.contract_workflows",
+        "comfy_omni.conversion.exporters",
+        "comfy_omni.domain",
+    ),
+    "src/comfy_omni/conversion/exporters/execution.py": (
+        "comfy_omni.artifacts",
+        "comfy_omni.contracts",
+        "comfy_omni.conversion.exporters",
+        "comfy_omni.conversion.packaging",
+        "comfy_omni.domain",
+    ),
+    "src/comfy_omni/conversion/packaging/native_export.py": (
+        "comfy_omni.artifacts",
+        "comfy_omni.contracts",
         "comfy_omni.conversion.exporters",
         "comfy_omni.domain",
     ),

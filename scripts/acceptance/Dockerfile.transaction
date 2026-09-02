@@ -1,0 +1,14 @@
+# syntax=docker/dockerfile:1.7
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+COPY *.whl /tmp/comfy-omni-wheel/
+RUN python -m pip install --no-cache-dir --no-deps --force-reinstall /tmp/comfy-omni-wheel/*.whl \
+    && rm -r /tmp/comfy-omni-wheel
+
+USER 65532:65532
+WORKDIR /work
+ENTRYPOINT ["comfy-omni"]
+CMD ["--help"]

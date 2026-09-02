@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
@@ -118,10 +118,31 @@ class SafeTensorSources:
             raise ContractError(f"truncated source tensor {tensor.descriptor.name!r}")
         return raw
 
+    def iter_raw(self, tensor: LocatedTensor, *, chunk_bytes: int = HASH_CHUNK_BYTES) -> Iterable[bytes]:
+        """Yield one tensor from its held descriptor without crossing its byte range."""
+
+        if type(chunk_bytes) is not int or chunk_bytes <= 0:
+            raise ContractError("source payload chunk size must be a positive integer")
+        start, end = tensor.descriptor.data_offsets
+        source = self._sources[tensor.source_index]
+        source.stream.seek(tensor.payload_offset + start)
+        remaining = end - start
+        while remaining:
+            chunk = source.stream.read(min(chunk_bytes, remaining))
+            if not chunk:
+                raise ContractError(f"truncated source tensor {tensor.descriptor.name!r}")
+            remaining -= len(chunk)
+            yield chunk
+
     def verify_unchanged(self) -> None:
         for source in self._sources:
             if fd_identity(os.fstat(source.stream.fileno())) != source.identity:
                 raise ContractError(f"source descriptor changed during scan: {source.path}")
+            digest = _hash_stream(source.stream)
+            if digest != source.sha256:
+                raise ContractError(f"source contents changed during scan: {source.path}")
+            if fd_identity(os.fstat(source.stream.fileno())) != source.identity:
+                raise ContractError(f"source descriptor changed during final hashing: {source.path}")
             if _path_identity(source.path) != source.identity[:3]:
                 raise ContractError(f"source path changed during scan: {source.path}")
 

@@ -71,7 +71,9 @@ The bounded CPU/CUDA acceptance for candidate `b0b757a696d9` is recorded in
 
 ## Remaining issue #8 work
 
-The next slice may consume this backend from a held-descriptor payload reader and transactional
-writer. It must still implement source re-verification, exclusive staging, shard/index/config
-output, independent export verification, manifest-last publication, compatible `export-native`,
-and a complete real checkpoint conversion. None of those are implied by numerical smoke evidence.
+The accepted `1a8ce636aa06` transaction now provides held-descriptor source re-verification,
+exclusive staging, shard/index/config output, independent export verification, and manifest-last
+publication for `copy-raw`. It still rejects this numerical operation and QKV reorder. The next
+slice must connect bounded numerical producers to that transaction, carry external contract
+snapshots, and complete a real Ref2VA conversion before `export-native` or native-load claims.
+None of those later outcomes are implied by either the numerical smoke or copy-only transaction.
