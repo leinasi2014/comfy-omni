@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
+from dataclasses import replace
+from pathlib import Path, PurePosixPath
+
+import pytest
 
 from comfy_omni.artifacts import fileops
+from comfy_omni.conversion.packaging.materialization import materialize_package
 from comfy_omni.conversion.packaging.models import ComponentFile, ComponentReceipt, NativePackagePlan
 from comfy_omni.conversion.packaging.planning import (
     PACKAGE_COMPONENTS,
     PINNED_VLLM_OMNI_COMMIT,
     plan_native_package,
 )
+from comfy_omni.conversion.packaging.publication import PackagePublicationError, publish_package
 from comfy_omni.domain.normalization import ToolIdentity
 
 
@@ -51,8 +56,6 @@ def test_publish_package_publishes_manifest_last_atomically(tmp_path: Path) -> N
         publish_package,
     )
 
-    from comfy_omni.conversion.packaging.materialization import materialize_package
-
     plan, payloads = _fixture(tmp_path)
     output = tmp_path / "native-package"
 
@@ -86,3 +89,106 @@ def test_publish_package_publishes_manifest_last_atomically(tmp_path: Path) -> N
     ).hexdigest()
     assert manifest["package_manifest_sha256"] == digest
     assert published.manifest_sha256 == digest
+
+
+def test_publish_package_refuses_a_plan_handle_digest_mismatch(tmp_path: Path) -> None:
+    plan, _ = _fixture(tmp_path)
+    output = tmp_path / "native-package"
+    materialized = materialize_package(plan, output)
+
+    mismatched = replace(plan, content_sha256="0" * 64)
+
+    with pytest.raises(PackagePublicationError, match="plan digest") as failure:
+        publish_package(mismatched, materialized)
+
+    assert failure.value.evidence["stage"] == "plan-binding"
+    assert not output.exists()
+    assert materialized.stage_dir.exists()
+
+
+def test_publish_package_rejects_post_materialization_staged_tampering(tmp_path: Path) -> None:
+    plan, _ = _fixture(tmp_path)
+    output = tmp_path / "native-package"
+    materialized = materialize_package(plan, output)
+
+    staged = materialized.stage_dir / "Ref2VA/transformer/nested/artifact.bin"
+    original = staged.read_bytes()
+    staged.chmod(0o600)
+    staged.write_bytes(b"\x00" * len(original))
+
+    with pytest.raises(PackagePublicationError, match="SHA256 differs") as failure:
+        publish_package(plan, materialized)
+
+    assert failure.value.evidence["stage"] == "file-verification"
+    assert not output.exists()
+    assert materialized.stage_dir.exists()
+
+
+def test_publish_package_rejects_an_unexpected_staged_entry(tmp_path: Path) -> None:
+    plan, _ = _fixture(tmp_path)
+    output = tmp_path / "native-package"
+    materialized = materialize_package(plan, output)
+
+    (materialized.stage_dir / "unexpected.bin").write_bytes(b"unexpected")
+
+    with pytest.raises(PackagePublicationError, match="file census differs") as failure:
+        publish_package(plan, materialized)
+
+    assert failure.value.evidence["stage"] == "staging-census"
+    assert not output.exists()
+    assert materialized.stage_dir.exists()
+
+
+def test_publish_package_rejects_a_missing_staged_entry(tmp_path: Path) -> None:
+    plan, _ = _fixture(tmp_path)
+    output = tmp_path / "native-package"
+    materialized = materialize_package(plan, output)
+
+    staged = materialized.stage_dir / "Ref2VA/transformer/nested/artifact.bin"
+    staged.chmod(0o600)
+    staged.unlink()
+
+    with pytest.raises(PackagePublicationError, match="file census differs") as failure:
+        publish_package(plan, materialized)
+
+    assert failure.value.evidence["stage"] == "staging-census"
+    assert not output.exists()
+    assert materialized.stage_dir.exists()
+
+
+def test_publish_package_refuses_an_output_that_appeared_before_publication(tmp_path: Path) -> None:
+    plan, _ = _fixture(tmp_path)
+    output = tmp_path / "native-package"
+    materialized = materialize_package(plan, output)
+
+    output.mkdir()
+    marker = output / "marker.txt"
+    marker.write_bytes(b"keep-me")
+
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        publish_package(plan, materialized)
+
+    assert marker.read_bytes() == b"keep-me"
+    assert materialized.stage_dir.exists()
+
+
+def test_publish_package_rejects_a_replaced_staging_directory(tmp_path: Path) -> None:
+    plan, payloads = _fixture(tmp_path)
+    output = tmp_path / "native-package"
+    materialized = materialize_package(plan, output)
+
+    stage = materialized.stage_dir
+    moved = stage.parent / "moved-away-stage"
+    stage.rename(moved)
+    stage.mkdir()
+    for target_path, payload in payloads.items():
+        path = stage.joinpath(*PurePosixPath(target_path).parts)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
+    with pytest.raises(PackagePublicationError, match="identity changed") as failure:
+        publish_package(plan, materialized)
+
+    assert failure.value.evidence["stage"] == "staging"
+    assert not output.exists()
+    assert stage.exists()
