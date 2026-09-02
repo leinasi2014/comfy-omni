@@ -165,6 +165,29 @@ class PackageMaterialization:
         }
 
 
+@dataclass(frozen=True)
+class PackagePublication:
+    """Immutable result of one atomic native package publication."""
+
+    schema: str
+    plan_content_sha256: str
+    manifest_sha256: str
+    file_count: int
+    total_bytes: int
+    output_dir: Path
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "file_count": self.file_count,
+            "manifest_sha256": self.manifest_sha256,
+            "output_dir": self.output_dir.as_posix(),
+            "plan_content_sha256": self.plan_content_sha256,
+            "schema": self.schema,
+            "status": "PUBLISHED",
+            "total_bytes": self.total_bytes,
+        }
+
+
 __all__ = [
     "ComponentFile",
     "ComponentReceipt",
@@ -172,5 +195,6 @@ __all__ = [
     "PackageComponentPlan",
     "PackageFilePlan",
     "PackageMaterialization",
+    "PackagePublication",
     "PackageSourceVerification",
 ]
