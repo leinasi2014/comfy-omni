@@ -25,6 +25,7 @@ REQUIRED_SECTIONS = (
 REQUIRED_MILESTONES = tuple(f"M{index}" for index in range(8))
 REQUIRED_SHARED_LINKS = (
     "docs/post-merge-refactoring-plan.md",
+    "docs/architecture/README.md",
     "docs/testing/model-validation-baseline.md",
 )
 REQUIRED_SHARED_SNIPPETS = ("comfy-omni inspect CHECKPOINT.safetensors --json",)
