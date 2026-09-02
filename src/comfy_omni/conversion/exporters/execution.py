@@ -55,8 +55,7 @@ def _verify_plan_digest(plan: NativeExportPlan) -> None:
     ):
         _fail("native export plan schema or profile is not executable by this slice", "plan-binding")
     if plan.source_contract_origin != "compile-time" or any(
-        value is not None
-        for value in (plan.source_snapshot_manifest_sha256, plan.source_snapshot_file_sha256)
+        value is not None for value in (plan.source_snapshot_manifest_sha256, plan.source_snapshot_file_sha256)
     ):
         _fail("external contract snapshot publication is not implemented by this slice", "plan-binding")
     if not plan.source_files or len({item.path for item in plan.source_files}) != len(plan.source_files):
