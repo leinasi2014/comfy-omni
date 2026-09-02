@@ -34,7 +34,8 @@ COPY . .
 FROM development AS documentation
 
 RUN python scripts/check_readme_sync.py \
-    && python scripts/check_docker_policy.py
+    && python scripts/check_docker_policy.py \
+    && python scripts/check_delivery_policy.py
 
 FROM development AS quality
 
@@ -42,7 +43,8 @@ RUN python -m ruff format --check src tests scripts \
     && python -m ruff check src tests scripts \
     && python -m pytest -q --strict-markers \
     && python scripts/check_readme_sync.py \
-    && python scripts/check_docker_policy.py
+    && python scripts/check_docker_policy.py \
+    && python scripts/check_delivery_policy.py
 
 FROM python-base AS package-builder
 

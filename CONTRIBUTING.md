@@ -6,6 +6,7 @@ small, reviewable changes and explicit compatibility decisions matter more than 
 ## Required reading
 
 - [`AGENTS.md`](AGENTS.md)
+- [`docs/development/delivery.md`](docs/development/delivery.md)
 - [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
 - [`docs/development/docker-first.md`](docs/development/docker-first.md)
 - The nearest nested `AGENTS.md` for any legacy source being inspected
@@ -33,14 +34,10 @@ host. Any necessary exception must satisfy the documented exception protocol bef
 ## Branch workflow
 
 1. Start from an up-to-date `main`.
-2. Create a short-lived branch:
-   - `feat/<topic>`
-   - `fix/<topic>`
-   - `refactor/<topic>`
-   - `docs/<topic>`
-   - `test/<topic>`
-   - `build/<topic>`
-   - `chore/<topic>`
+2. Create a short-lived branch. Human-managed branches use `<type>/<topic>`. The Codex application
+   requires its reserved prefix, so Codex-managed branches use `codex/<type>-<topic>`. In both
+   forms, `<type>` is one of `feat`, `fix`, `refactor`, `docs`, `test`, `build`, or `chore`, and the
+   topic is short kebab-case.
 3. Make focused commits using Conventional Commits, for example:
    - `docs(readme): add bilingual roadmap`
    - `refactor(contracts): separate snapshot persistence`
@@ -49,6 +46,20 @@ host. Any necessary exception must satisfy the documented exception protocol bef
 5. Resolve review findings and required checks before merge.
 
 Do not develop ordinary features directly on `main`. Do not force-push or rewrite shared `main`.
+
+## Contract and TDD flow
+
+Freeze the bounded outcome, non-goals, representative scenario, ownership, failure semantics,
+compatibility, limits, and acceptance evidence in the live Issue before executable work. Then use
+the repository [delivery loop](docs/development/delivery.md):
+
+1. RED fails on the accepted base for the intended missing behavior.
+2. GREEN makes the smallest causal change and runs RED first.
+3. REFACTOR changes structure only while the focused and representative checks stay green.
+4. Full Docker and applicable real-server gates prove the candidate before integration.
+
+Record exact candidate/run identities and results in the pull request. A setup failure, already
+passing test, mock of the wrong boundary, skipped gate, or branch-only result is not acceptance.
 
 ## Pull-request scope
 
@@ -64,10 +75,11 @@ A pull request should have one primary goal. Separate these when practical:
 The PR description must include:
 
 - problem and intended outcome;
+- explicit non-goals and one observable acceptance example;
 - files/modules changed;
 - architecture and dependency impact;
 - public-contract compatibility impact;
-- tests and exact results;
+- RED/GREEN/REFACTOR plus exact Docker/server results;
 - migration and rollback plan;
 - documentation and license/attribution impact.
 
