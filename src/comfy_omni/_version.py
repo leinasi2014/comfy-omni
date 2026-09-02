@@ -22,4 +22,3 @@ def distribution_version() -> str:
 
 
 __all__ = ["distribution_version"]
-
