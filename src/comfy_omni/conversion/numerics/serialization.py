@@ -8,10 +8,20 @@ e9cb011d00b028c149db3978de246c54f6e34acc (blob
 
 from __future__ import annotations
 
+import os
 import sys
 
 from comfy_omni.conversion.numerics.errors import ConvRotNumericsError
 from comfy_omni.conversion.numerics.torch_backend import _torch, fast_inverse_convrot_rows
+
+
+def _conversion_device(torch: object) -> str:
+    device = os.environ.get("COMFY_OMNI_CONVROT_DEVICE", "cpu")
+    if device not in {"cpu", "cuda"}:
+        raise ConvRotNumericsError("COMFY_OMNI_CONVROT_DEVICE must be cpu or cuda")
+    if device == "cuda" and not torch.cuda.is_available():
+        raise ConvRotNumericsError("COMFY_OMNI_CONVROT_DEVICE requests cuda but CUDA is unavailable")
+    return device
 
 
 def torch_convrot_bf16_block(
@@ -33,8 +43,9 @@ def torch_convrot_bf16_block(
     if not isinstance(rowwise_scale, bytes) or len(rowwise_scale) != rows * 4:
         raise ConvRotNumericsError("serialized ConvRot F32 scale block has the wrong byte length")
     torch = _torch()
-    weight = torch.frombuffer(bytearray(qweight), dtype=torch.int8).reshape(rows, columns)
-    scale = torch.frombuffer(bytearray(rowwise_scale), dtype=torch.float32).reshape(rows, 1)
+    device = _conversion_device(torch)
+    weight = torch.frombuffer(bytearray(qweight), dtype=torch.int8).reshape(rows, columns).to(device=device)
+    scale = torch.frombuffer(bytearray(rowwise_scale), dtype=torch.float32).reshape(rows, 1).to(device=device)
     decoded = (
         fast_inverse_convrot_rows(weight, scale, group_size=group_size).to(dtype=torch.bfloat16).contiguous().cpu()
     )
