@@ -166,6 +166,14 @@ defined by the Docker-first policy. Missing local Docker is an unavailable local
 permission to fall back to host Python; trusted CI and designated-server Docker evidence remain
 required.
 
+After the required mounts are declared, these are commands *inside* the container, never host-shell
+installation or execution instructions:
+
+```text
+comfy-omni inspect CHECKPOINT.safetensors --json
+comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
+```
+
 This exposes project identity, strict header-only inspection, and the one exact normalization profile
 documented in [`docs/migration/text-encoder-normalization.md`](docs/migration/text-encoder-normalization.md).
 It does not load tensors or provide general legacy conversion/runtime commands. Fast deterministic

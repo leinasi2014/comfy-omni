@@ -154,6 +154,13 @@ PowerShell 用户使用 `scripts/docker.ps1` 的同名 action。模型／checkpo
 显式只读挂载输入，并单独挂载有边界的输出／证据目录，具体规则见 Docker-first 规范。本地没有 Docker
 只代表本地门不可用，不允许回退到宿主 Python；仍必须取得可信 CI 与指定服务器 Docker 证据。
 
+完成所需挂载声明后，以下是**容器内部**命令，绝不是宿主 shell 的安装或执行说明：
+
+```text
+comfy-omni inspect CHECKPOINT.safetensors --json
+comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
+```
+
 目前提供项目身份、严格的 header-only inspection，以及
 [`docs/migration/text-encoder-normalization.md`](docs/migration/text-encoder-normalization.md) 中记录的唯一
 精确规范化 profile；它不会加载 tensor，也尚未提供通用旧转换／运行时命令。快速、确定性的仓库检查

@@ -37,9 +37,7 @@ def test_policy_rejects_host_python_but_allows_docker_wrapper() -> None:
 
 def test_repository_satisfies_docker_first_policy() -> None:
     errors = (
-        POLICY["_validate_policy_markers"]()
-        + POLICY["_validate_workflows"]()
-        + POLICY["_validate_build_contract"]()
+        POLICY["_validate_policy_markers"]() + POLICY["_validate_workflows"]() + POLICY["_validate_build_contract"]()
     )
 
     assert errors == []
