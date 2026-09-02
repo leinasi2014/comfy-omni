@@ -10,7 +10,7 @@ import argparse
 from collections.abc import Sequence
 
 from comfy_omni import __version__
-from comfy_omni.cli.commands import inspect, normalize
+from comfy_omni.cli.commands import contract, inspect, normalize
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -28,6 +28,8 @@ def _parser() -> argparse.ArgumentParser:
     inspect.configure_parser(inspect_parser)
     normalize_parser = subparsers.add_parser("normalize", help="apply an explicit digest-pinned normalization")
     normalize.configure_parser(normalize_parser)
+    contract_parser = subparsers.add_parser("contract", help="scan, draft, review, and load source contracts")
+    contract.configure_parser(contract_parser)
     return parser
 
 
@@ -39,6 +41,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return inspect.run(args)
     if args.command == "normalize":
         return normalize.run(args)
+    if args.command == "contract":
+        return contract.run(args)
     return 0
 
 

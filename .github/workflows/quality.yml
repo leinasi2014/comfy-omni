@@ -83,6 +83,7 @@ jobs:
           cli_bin="$RUNNER_TEMP/venv/bin/comfy-omni"
           "$cli_bin" --help
           "$cli_bin" --version
+          "$cli_bin" contract list --json
           "$python_bin" - <<'PY'
           import importlib.metadata
           import json
@@ -95,6 +96,7 @@ jobs:
           import comfy_omni
           import comfy_omni.plugin
           from comfy_omni.artifacts.build_identity import installed_tool_identity
+          from comfy_omni.contracts import ARCHITECTURE_TEMPLATES, COMPILE_TIME_CATALOG
 
           entry_points = importlib.metadata.entry_points(group="vllm_omni.general_plugins")
           assert any(entry_point.name == "comfy_omni" for entry_point in entry_points)
@@ -102,6 +104,10 @@ jobs:
           assert tool_identity.distribution == "comfy-omni"
           assert len(tool_identity.source_commit) == 40
           assert len(tool_identity.wheel_sha256) == 64
+          assert len(ARCHITECTURE_TEMPLATES) == 4
+          assert len(COMPILE_TIME_CATALOG.records) == 3
+          assert "torch" not in sys.modules
+          assert "vllm" not in sys.modules
 
           with tempfile.TemporaryDirectory() as directory:
               checkpoint = Path(directory) / "empty.safetensors"
