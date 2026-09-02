@@ -88,7 +88,9 @@ CLI / HTTP API / runtime integrations
                       core
 ```
 
-The intended source layout lives under [`src/comfy_omni`](src/comfy_omni). Internal modules must
+The intended source layout lives under [`src/comfy_omni`](src/comfy_omni). The
+[validated target architecture](docs/architecture/README.md) shows the dependency and publication
+boundaries while distinguishing proven M0 capability from planned work. Internal modules must
 follow the dependency direction above; the public facade is for external consumers and must not be
 used as an internal dependency shortcut.
 

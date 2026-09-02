@@ -1,6 +1,7 @@
 # ComfyOmni documentation
 
 - [Post-merge refactoring and open-source plan](post-merge-refactoring-plan.md)
+- [Validated target architecture](architecture/README.md)
 - [Pinned model validation baseline](testing/model-validation-baseline.md)
 - [Machine-readable model baseline v1](testing/model-baseline.v1.json)
 - [Checkpoint inspection migration record](migration/checkpoint-inspection-e9cb011.md)

@@ -82,7 +82,8 @@ CLI / HTTP API / runtime integrations
                       core
 ```
 
-目标源码结构位于 [`src/comfy_omni`](src/comfy_omni)。内部模块必须遵守以上依赖方向；public facade
+目标源码结构位于 [`src/comfy_omni`](src/comfy_omni)。[已验证的目标架构图](docs/architecture/README.md)
+展示依赖与发布边界，并明确区分已经证明的 M0 能力和计划工作。内部模块必须遵守以上依赖方向；public facade
 只服务外部消费者，不能成为仓内模块绕过分层的依赖捷径。
 
 <!-- README_SYNC: milestones -->
