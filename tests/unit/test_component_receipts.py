@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+import pytest
+
 from comfy_omni.artifacts import fileops
 from comfy_omni.conversion.packaging.models import ComponentFile
 from comfy_omni.conversion.packaging.planning import (
@@ -82,3 +84,99 @@ def test_parse_component_receipt_builds_plannable_census_from_real_directory(tmp
     verification = verify_package_sources(plan)
     assert verification.plan_content_sha256 == plan.content_sha256
     assert verification.file_count == 7
+
+
+def test_parse_component_receipt_refuses_an_unknown_component(tmp_path: Path) -> None:
+    from comfy_omni.conversion.packaging.receipts import (
+        ComponentReceiptError,
+        parse_component_receipt,
+    )
+
+    source = tmp_path / "sources" / "lora"
+    source.mkdir(parents=True)
+    (source / "artifact.bin").write_bytes(b"payload")
+
+    with pytest.raises(ComponentReceiptError, match="not a package component") as failure:
+        parse_component_receipt("lora", source.as_posix(), TOOL)
+
+    assert failure.value.evidence["stage"] == "component-binding"
+
+
+def test_parse_component_receipt_refuses_a_missing_source_directory(tmp_path: Path) -> None:
+    from comfy_omni.conversion.packaging.receipts import (
+        ComponentReceiptError,
+        parse_component_receipt,
+    )
+
+    missing = tmp_path / "sources" / "transformer" / "does-not-exist"
+
+    with pytest.raises(ComponentReceiptError, match="source") as failure:
+        parse_component_receipt("transformer", missing.as_posix(), TOOL)
+
+    assert failure.value.evidence["stage"] == "source-binding"
+
+
+def test_parse_component_receipt_refuses_a_linked_leaf_in_the_tree(tmp_path: Path) -> None:
+    from comfy_omni.conversion.packaging.receipts import (
+        ComponentReceiptError,
+        parse_component_receipt,
+    )
+
+    source = tmp_path / "sources" / "transformer"
+    source.mkdir(parents=True)
+    (source / "nested").mkdir()
+    (source / "nested" / "artifact.bin").write_bytes(b"payload")
+    (source / "linked.bin").symlink_to(source / "nested" / "artifact.bin")
+
+    with pytest.raises(ComponentReceiptError, match="link") as failure:
+        parse_component_receipt("transformer", source.as_posix(), TOOL)
+
+    assert failure.value.evidence["stage"] == "census"
+
+
+def test_parse_component_receipt_refuses_an_empty_tree(tmp_path: Path) -> None:
+    from comfy_omni.conversion.packaging.receipts import (
+        ComponentReceiptError,
+        parse_component_receipt,
+    )
+
+    source = tmp_path / "sources" / "transformer"
+    source.mkdir(parents=True)
+    (source / "empty-dir").mkdir()
+
+    with pytest.raises(ComponentReceiptError, match="no files") as failure:
+        parse_component_receipt("transformer", source.as_posix(), TOOL)
+
+    assert failure.value.evidence["stage"] == "census"
+
+
+def test_parse_component_receipt_refuses_drift_during_hashing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from comfy_omni.conversion.packaging.receipts import (
+        ComponentReceiptError,
+        parse_component_receipt,
+    )
+
+    source = tmp_path / "sources" / "transformer"
+    source.mkdir(parents=True)
+    target = source / "artifact.bin"
+    target.write_bytes(b"stable-payload")
+    original = fileops.sha256_file_pinned
+    calls = 0
+
+    def hash_then_rewrite(path: Path) -> tuple[str, int]:
+        nonlocal calls
+        result = original(path)
+        calls += 1
+        if calls == 1:
+            path.write_bytes(b"\x00" * result[1])
+        return result
+
+    monkeypatch.setattr(fileops, "sha256_file_pinned", hash_then_rewrite)
+
+    with pytest.raises(ComponentReceiptError, match="changed") as failure:
+        parse_component_receipt("transformer", source.as_posix(), TOOL)
+
+    assert failure.value.evidence["stage"] == "census-recheck"
