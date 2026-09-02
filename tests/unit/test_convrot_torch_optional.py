@@ -15,3 +15,5 @@ def test_torch_backend_has_a_stable_error_when_container_omits_torch(monkeypatch
 
     with pytest.raises(ConvRotNumericsError, match="conversion container"):
         torch_backend.regular_hadamard(4)
+    with pytest.raises(ConvRotNumericsError, match="conversion container"):
+        torch_backend.fast_inverse_convrot_rows(object(), object(), group_size=4)
