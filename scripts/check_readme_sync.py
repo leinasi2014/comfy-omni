@@ -28,7 +28,11 @@ REQUIRED_SHARED_LINKS = (
     "docs/architecture/README.md",
     "docs/testing/model-validation-baseline.md",
 )
-REQUIRED_SHARED_SNIPPETS = ("comfy-omni inspect CHECKPOINT.safetensors --json",)
+REQUIRED_SHARED_SNIPPETS = (
+    "comfy-omni inspect CHECKPOINT.safetensors --json",
+    "comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json",
+    "docs/migration/text-encoder-normalization.md",
+)
 
 
 def _read(path: Path) -> str:

@@ -10,7 +10,7 @@ import argparse
 from collections.abc import Sequence
 
 from comfy_omni import __version__
-from comfy_omni.cli.commands import inspect
+from comfy_omni.cli.commands import inspect, normalize
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -26,6 +26,8 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     inspect_parser = subparsers.add_parser("inspect", help="inspect safetensors headers without loading tensors")
     inspect.configure_parser(inspect_parser)
+    normalize_parser = subparsers.add_parser("normalize", help="apply an explicit digest-pinned normalization")
+    normalize.configure_parser(normalize_parser)
     return parser
 
 
@@ -35,6 +37,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "inspect":
         return inspect.run(args)
+    if args.command == "normalize":
+        return normalize.run(args)
     return 0
 
 

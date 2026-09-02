@@ -42,9 +42,11 @@ header 索引覆盖到数据区末尾之前 72 字节，末尾存在一个来源
 
 后续 staging 切片必须保留原文件和原 SHA256，只能通过 digest-pinned profile 原子生成新的规范化
 副本。receipt 至少绑定原 SHA256、原字节数、被移除尾部的字节数与 SHA256、派生文件字节数、派生
-SHA256 和工具 commit；派生文件必须重新通过同一个 strict reader。派生 SHA256 尚未冻结前，文本
-编码器不得进入 package-load 或 prompt-encoding 验收。此例外不是运行时支持声明，也不能扩展成对
-任意尾部数据的容忍。
+SHA256、工具 commit 与 wheel SHA256；派生文件必须重新通过同一个 strict reader。指定验证主机已用
+只读、流式摘要发现流程冻结派生文件身份：`15,683,129,587` 字节，SHA256 为
+`a166c7bbbe66a22065159e478335fee4a633c4a3e3bb34c8e8ac4cc91bf4996f`。该发现仅冻结预期身份；只有
+ComfyOmni 的正式命令从固定源文件生成独立副本、发布 receipt 并完成严格重读后，才构成 E3 验收。
+此例外不是运行时支持声明，也不能扩展成对任意尾部数据的容忍。
 
 本发现绑定 ComfyOmni commit `71488775c17888ba81210b2cf1ba5bc4e52eb52d`、表中源文件字节数与
 SHA256，以及 JSON 中的 header/索引/尾部摘要。strict reader 在结构检查阶段即拒绝，因此这次运行

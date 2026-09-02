@@ -94,9 +94,14 @@ jobs:
 
           import comfy_omni
           import comfy_omni.plugin
+          from comfy_omni.artifacts.build_identity import installed_tool_identity
 
           entry_points = importlib.metadata.entry_points(group="vllm_omni.general_plugins")
           assert any(entry_point.name == "comfy_omni" for entry_point in entry_points)
+          tool_identity = installed_tool_identity()
+          assert tool_identity.distribution == "comfy-omni"
+          assert len(tool_identity.source_commit) == 40
+          assert len(tool_identity.wheel_sha256) == 64
 
           with tempfile.TemporaryDirectory() as directory:
               checkpoint = Path(directory) / "empty.safetensors"

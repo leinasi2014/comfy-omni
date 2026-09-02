@@ -53,7 +53,7 @@
         "in_place_mutation": false,
         "generic_trailing_tolerance": false,
         "expected_derived_bytes": 15683129587,
-        "expected_derived_sha256": null
+        "expected_derived_sha256": "a166c7bbbe66a22065159e478335fee4a633c4a3e3bb34c8e8ac4cc91bf4996f"
       },
       "validation_uses": [
         "inspection",
