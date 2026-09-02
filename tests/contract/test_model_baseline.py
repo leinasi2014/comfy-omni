@@ -53,11 +53,77 @@ EXPECTED_ASSETS = {
         "71b8085ac4221ee036708c230a007d617dccca1b0028b95bb4ee106cb2a385c5",
     ),
 }
+EXPECTED_CONFIG_TOTALS = {
+    "processor-config": (7, 11_498_352),
+    "tokenizer-config": (4, 11_492_078),
+}
+EXPECTED_CONFIG_FILES = {
+    "tokenizer-config": {
+        "merges.txt": (
+            1_671_839,
+            "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+            "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0",
+        ),
+        "tokenizer.json": (
+            7_032_403,
+            "a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7",
+            "c6cc1014128b19d1fc46b1d30a23e3b1d35db421",
+        ),
+        "tokenizer_config.json": (
+            11_003,
+            "a07e942ac874baa13758de8d1fbdb186683cc03416b5589e1b6671c6b3057c68",
+            "204d76f78dac6dedc820418c30bf01145de78a21",
+        ),
+        "vocab.json": (
+            2_776_833,
+            "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+            "4783fe10ac3adce15ac8f358ef5462739852c569",
+        ),
+    },
+    "processor-config": {
+        "chat_template.json": (
+            5_499,
+            "5c72a170d2a4a1a3bc5adad2e689ae28138a9700e5b8c96c0266331e86c0acce",
+            "1081bacf1af7c7c6de4a585ce02cd0fd34e382da",
+        ),
+        "merges.txt": (
+            1_671_839,
+            "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+            "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0",
+        ),
+        "preprocessor_config.json": (
+            390,
+            "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+            "2ea84a437d448ff71b08df68fdd949d5cc4ebb64",
+        ),
+        "tokenizer.json": (
+            7_032_403,
+            "a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7",
+            "c6cc1014128b19d1fc46b1d30a23e3b1d35db421",
+        ),
+        "tokenizer_config.json": (
+            11_003,
+            "a07e942ac874baa13758de8d1fbdb186683cc03416b5589e1b6671c6b3057c68",
+            "204d76f78dac6dedc820418c30bf01145de78a21",
+        ),
+        "video_preprocessor_config.json": (
+            385,
+            "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13",
+            "3ba673a5ad7d4d13f54155ecd38b2a94a6dac8fe",
+        ),
+        "vocab.json": (
+            2_776_833,
+            "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+            "4783fe10ac3adce15ac8f358ef5462739852c569",
+        ),
+    },
+}
 EXPECTED_SCENARIOS = {
     "artifact-identity",
     "primary-runtime-smoke",
     "lora-compatibility",
     "full-dit-hot-swap",
+    "package-assembly",
 }
 
 
@@ -75,13 +141,22 @@ def test_model_baseline_has_the_frozen_asset_identities() -> None:
     assets = baseline["assets"]
     assert isinstance(assets, list)
     by_id = {asset["id"]: asset for asset in assets}
-    assert set(by_id) == set(EXPECTED_ASSETS)
+    assert set(by_id) == set(EXPECTED_ASSETS) | set(EXPECTED_CONFIG_TOTALS)
 
     for asset_id, (expected_role, expected_bytes, expected_sha256) in EXPECTED_ASSETS.items():
         asset = by_id[asset_id]
         assert asset["role"] == expected_role
         assert asset["bytes"] == expected_bytes
         assert asset["sha256"] == expected_sha256
+
+    for asset_id, (expected_count, expected_total) in EXPECTED_CONFIG_TOTALS.items():
+        asset = by_id[asset_id]
+        assert asset["role"] == "package-component-config"
+        observed = {item["path"]: (item["bytes"], item["sha256"], item["git_blob_sha1"]) for item in asset["files"]}
+        assert len(observed) == expected_count
+        assert sum(item[0] for item in observed.values()) == expected_total
+        assert observed == EXPECTED_CONFIG_FILES[asset_id]
+        assert asset["source_prefix"] == f"Ref2VA/{asset_id.removesuffix('-config')}"
 
 
 def test_model_baseline_sources_are_explicit_and_content_bound() -> None:
@@ -92,15 +167,10 @@ def test_model_baseline_sources_are_explicit_and_content_bound() -> None:
     observed_filenames: set[str] = set()
     for asset in assets:
         assert isinstance(asset, dict)
-        sha256 = asset["sha256"]
-        filename = asset["filename"]
         source_url = asset["source_url"]
-        assert isinstance(sha256, str) and SHA256_RE.fullmatch(sha256)
-        assert isinstance(filename, str) and filename.endswith(".safetensors")
         assert isinstance(source_url, str)
         parsed_url = urlparse(source_url)
         assert parsed_url.scheme == "https" and parsed_url.netloc
-        assert asset["bytes"] > 0
         assert asset["repository"]
         assert asset["license"]
         assert asset["validation_uses"]
@@ -114,6 +184,19 @@ def test_model_baseline_sources_are_explicit_and_content_bound() -> None:
             assert revision == "master"
             assert asset["source_binding"] == "modelscope-x-linked-etag-sha256"
 
+        if asset["role"] == "package-component-config":
+            assert asset["source_prefix"]
+            for item in asset["files"]:
+                assert item["path"] and item["bytes"] > 0
+                assert isinstance(item["sha256"], str) and SHA256_RE.fullmatch(item["sha256"])
+                assert isinstance(item["git_blob_sha1"], str) and REVISION_RE.fullmatch(item["git_blob_sha1"])
+            continue
+
+        sha256 = asset["sha256"]
+        filename = asset["filename"]
+        assert isinstance(sha256, str) and SHA256_RE.fullmatch(sha256)
+        assert isinstance(filename, str) and filename.endswith(".safetensors")
+        assert asset["bytes"] > 0
         assert sha256 not in observed_hashes
         assert filename not in observed_filenames
         observed_hashes.add(sha256)
@@ -168,6 +251,10 @@ def test_model_baseline_document_lists_every_pinned_payload_without_private_path
     assert isinstance(assets, list)
 
     for asset in assets:
+        if asset["role"] == "package-component-config":
+            for item in asset["files"]:
+                assert item["sha256"] in document
+            continue
         assert asset["filename"] in document
         assert asset["sha256"] in document
 

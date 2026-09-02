@@ -28,6 +28,8 @@
 | `spatial-physics-lora` | LoRA 候选 | `wushu_spatial_physics_clean_3000_pruned.safetensors` | 155,109,672 | `7d14f3701560068e7004159c8b2a7278bd2dbfc9e5e3b60d0bc9aef6c049919d` |
 | `realism-people-lora` | LoRA 候选 | `h3-realism-people-t2v-i2v-r2v.safetensors` | 131,229,656 | `acc529601d2da117fb81179e76c56e488a3beab1171659d305f04fa3655b787e` |
 | `hot-swap-dit` | 完整 DiT 热切换候选 | `minimax_h3_ref2va_pruned_zs05_int8_convrot.safetensors` | 20,970,379,680 | `71b8085ac4221ee036708c230a007d617dccca1b0028b95bb4ee106cb2a385c5` |
+| `tokenizer-config` | 包组件 tokenizer 配置目录 | `Ref2VA/tokenizer/`（4 文件） | 11,492,078 | 逐文件以 JSON 为准 |
+| `processor-config` | 包组件 processor 配置目录 | `Ref2VA/processor/`（7 文件） | 11,498,352 | 逐文件以 JSON 为准 |
 
 仓库、revision、下载页面、许可证状态和测试参数以 JSON 为准。固定文件名中的 `int8_convrot` 只是
 来源声明，不替代 ComfyOmni 对 safetensors header、tensor schema 和量化 metadata 的独立检查。
@@ -51,6 +53,36 @@ ComfyOmni 的正式命令从固定源文件生成独立副本、发布 receipt �
 本发现绑定 ComfyOmni commit `71488775c17888ba81210b2cf1ba5bc4e52eb52d`、表中源文件字节数与
 SHA256，以及 JSON 中的 header/索引/尾部摘要。strict reader 在结构检查阶段即拒绝，因此这次运行
 没有产生 text-encoder 组件识别、NVFP4 识别或运行时可加载的结论。
+
+### 2.2 官方 Ref2VA tokenizer/processor 组件目录
+
+`tokenizer-config` 与 `processor-config` 来自官方 `MiniMaxAI/MiniMax-H3` 仓库 revision
+`42ed227ee7df40d41602854ae760620d6eb651fe`（该 revision 与旧 `h3-forge` 对官方模板代码
+hash-lock 的 revision 一致）下的 `Ref2VA/tokenizer/`（4 文件）与 `Ref2VA/processor/`（7 文件）。
+两目录为多文件资产：字节数、SHA256 与 git blob SHA-1 逐文件固定在 JSON 中。
+
+| 组件 | 文件 | 字节数 | SHA256 |
+|---|---|---:|---|
+| `tokenizer-config` | `merges.txt` | 1,671,839 | `599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3` |
+| `tokenizer-config` | `tokenizer.json` | 7,032,403 | `a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7` |
+| `tokenizer-config` | `tokenizer_config.json` | 11,003 | `a07e942ac874baa13758de8d1fbdb186683cc03416b5589e1b6671c6b3057c68` |
+| `tokenizer-config` | `vocab.json` | 2,776,833 | `ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910` |
+| `processor-config` | `chat_template.json` | 5,499 | `5c72a170d2a4a1a3bc5adad2e689ae28138a9700e5b8c96c0266331e86c0acce` |
+| `processor-config` | `merges.txt` | 1,671,839 | `599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3` |
+| `processor-config` | `preprocessor_config.json` | 390 | `27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516` |
+| `processor-config` | `tokenizer.json` | 7,032,403 | `a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7` |
+| `processor-config` | `tokenizer_config.json` | 11,003 | `a07e942ac874baa13758de8d1fbdb186683cc03416b5589e1b6671c6b3057c68` |
+| `processor-config` | `video_preprocessor_config.json` | 385 | `7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13` |
+| `processor-config` | `vocab.json` | 2,776,833 | `ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910` |
+
+下载只允许在指定验证主机的 Docker 容器内经维护者 loopback-only 隧道进行，不修改系统代理；
+每个文件必须同时通过字节数与 git blob SHA-1 双重校验（对 pinned revision 字节精确）后才记录
+SHA256。两个目录在 `tokenizer.json`、`tokenizer_config.json`、`merges.txt`、`vocab.json` 上
+内容一致，属官方布局事实，不是下载缺陷。
+
+E3 组件树中，`transformer` 使用本仓库自己的 Ref2VA 全量转换输出（绑定 `hot-swap-dit` 来源），
+`text_encoder` 使用 digest-pinned 规范化 strict 副本，两个 VAE 使用已验证 payload；不引入官方
+transformer/text_encoder/VAE 权重。
 
 ## 3. 验收场景
 
@@ -99,6 +131,24 @@ SHA256，以及 JSON 中的 header/索引/尾部摘要。strict reader 在结构
 
 若 A/B 预检发现任务族或 schema 不兼容，必须在加载前拒绝并保留证据；这不等于热切换能力通过。
 基线只能通过独立 PR 更改，不能在测试脚本中偷偷换用另一个权重。
+
+### 3.5 固定六组件真实组包（E3）
+
+`hot-swap-dit`（经 Ref2VA 全量转换输出）、`text-encoder`（规范化 strict 副本）、`audio-vae`、
+`video-vae`、`tokenizer-config`、`processor-config` 构成首个固定组件集。可接受的组包证据必须在
+指定验证主机的 Docker 内完成：
+
+1. 六个组件目录 census 恰好等于冻结名单（无 sidecar、锁文件或多余条目），payload 以只读硬链接
+   进入独立组件树，不修改既有 ComfyUI 模型树；
+2. 安装 wheel 的真实工具身份驱动 `parse_component_receipt → plan_native_package →
+   verify_package_sources → materialize_package → publish_package` 完整链；
+3. 每一步的不可变结果（receipt 摘要、plan 自摘要、源验证摘要、staged census 摘要、manifest
+   自摘要）都通过 pinned 期望值或自摘要重算复核；
+4. 发布后的包由独立 verifier 容器从头重读：树 census、逐文件 pinned 哈希、manifest 自摘要与
+   内容一致性，任何不一致即整体失败；
+5. 证据记录 ComfyOmni commit、wheel SHA256、容器镜像 ID、全部组件来源摘要与耗时/峰值 RSS。
+
+组包成功不构成运行时声明：native load、最小生成、LoRA 与热切换仍属 E4/E5。
 
 ## 4. 证据等级
 

@@ -1,7 +1,7 @@
 {
   "schema_id": "comfy-omni.test-model-baseline/v1",
   "status": "pinned-for-validation",
-  "updated": "2026-09-02",
+  "updated": "2026-09-03",
   "download_policy": "maintainer-managed-external-only",
   "redistribute_with_comfy_omni": false,
   "assets": [
@@ -167,6 +167,104 @@
         "generation-candidate",
         "hot-swap-b"
       ]
+    },
+    {
+      "id": "tokenizer-config",
+      "role": "package-component-config",
+      "provider": "huggingface",
+      "repository": "MiniMaxAI/MiniMax-H3",
+      "revision": "42ed227ee7df40d41602854ae760620d6eb651fe",
+      "source_url": "https://huggingface.co/MiniMaxAI/MiniMax-H3/tree/42ed227ee7df40d41602854ae760620d6eb651fe/Ref2VA/tokenizer",
+      "source_prefix": "Ref2VA/tokenizer",
+      "license": "minimax-h3-community-license-agreement",
+      "risk_flags": [],
+      "files": [
+        {
+          "path": "merges.txt",
+          "bytes": 1671839,
+          "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+          "git_blob_sha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0"
+        },
+        {
+          "path": "tokenizer.json",
+          "bytes": 7032403,
+          "sha256": "a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7",
+          "git_blob_sha1": "c6cc1014128b19d1fc46b1d30a23e3b1d35db421"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "bytes": 11003,
+          "sha256": "a07e942ac874baa13758de8d1fbdb186683cc03416b5589e1b6671c6b3057c68",
+          "git_blob_sha1": "204d76f78dac6dedc820418c30bf01145de78a21"
+        },
+        {
+          "path": "vocab.json",
+          "bytes": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+          "git_blob_sha1": "4783fe10ac3adce15ac8f358ef5462739852c569"
+        }
+      ],
+      "validation_uses": [
+        "package-assembly"
+      ]
+    },
+    {
+      "id": "processor-config",
+      "role": "package-component-config",
+      "provider": "huggingface",
+      "repository": "MiniMaxAI/MiniMax-H3",
+      "revision": "42ed227ee7df40d41602854ae760620d6eb651fe",
+      "source_url": "https://huggingface.co/MiniMaxAI/MiniMax-H3/tree/42ed227ee7df40d41602854ae760620d6eb651fe/Ref2VA/processor",
+      "source_prefix": "Ref2VA/processor",
+      "license": "minimax-h3-community-license-agreement",
+      "risk_flags": [],
+      "files": [
+        {
+          "path": "chat_template.json",
+          "bytes": 5499,
+          "sha256": "5c72a170d2a4a1a3bc5adad2e689ae28138a9700e5b8c96c0266331e86c0acce",
+          "git_blob_sha1": "1081bacf1af7c7c6de4a585ce02cd0fd34e382da"
+        },
+        {
+          "path": "merges.txt",
+          "bytes": 1671839,
+          "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+          "git_blob_sha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "bytes": 390,
+          "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+          "git_blob_sha1": "2ea84a437d448ff71b08df68fdd949d5cc4ebb64"
+        },
+        {
+          "path": "tokenizer.json",
+          "bytes": 7032403,
+          "sha256": "a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7",
+          "git_blob_sha1": "c6cc1014128b19d1fc46b1d30a23e3b1d35db421"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "bytes": 11003,
+          "sha256": "a07e942ac874baa13758de8d1fbdb186683cc03416b5589e1b6671c6b3057c68",
+          "git_blob_sha1": "204d76f78dac6dedc820418c30bf01145de78a21"
+        },
+        {
+          "path": "video_preprocessor_config.json",
+          "bytes": 385,
+          "sha256": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13",
+          "git_blob_sha1": "3ba673a5ad7d4d13f54155ecd38b2a94a6dac8fe"
+        },
+        {
+          "path": "vocab.json",
+          "bytes": 2776833,
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+          "git_blob_sha1": "4783fe10ac3adce15ac8f358ef5462739852c569"
+        }
+      ],
+      "validation_uses": [
+        "package-assembly"
+      ]
     }
   ],
   "scenarios": [
@@ -179,7 +277,9 @@
         "video-vae",
         "spatial-physics-lora",
         "realism-people-lora",
-        "hot-swap-dit"
+        "hot-swap-dit",
+        "tokenizer-config",
+        "processor-config"
       ],
       "required_outcome": "Every source payload matches its pinned byte size and SHA256 before inspection or load; nonconformant source bytes remain quarantined and any normalized derivative receives a separate digest-bound identity."
     },
@@ -212,6 +312,18 @@
         "video-vae"
       ],
       "required_outcome": "One host process completes A-to-B-to-A switching, reports the correct digest-bound active model at each step, generates after every switch, invalidates stale caches, and returns resources within the declared budget."
+    },
+    {
+      "id": "package-assembly",
+      "asset_ids": [
+        "hot-swap-dit",
+        "text-encoder",
+        "audio-vae",
+        "video-vae",
+        "tokenizer-config",
+        "processor-config"
+      ],
+      "required_outcome": "On the designated Docker host, the fixed six-component trees (the Ref2VA conversion export bound to hot-swap-dit provenance, the digest-pinned strict text-encoder derivative, both VAE payloads, and the official Ref2VA tokenizer/processor directories) pass receipt parsing, plan authorization, source verification, private staging, manifest-last write, and same-parent atomic publication; an independent verifier re-reads the published package before assembly is accepted."
     }
   ]
 }
