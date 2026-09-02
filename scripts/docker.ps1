@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("docs", "quality", "package", "image", "cli")]
+    [ValidateSet("docs", "quality", "package", "image", "cli", "numerics")]
     [string] $Action = "quality",
     [ValidateSet("3.10", "3.11", "3.12", "3.13")]
     [string] $PythonVersion = "3.13",
@@ -26,12 +26,22 @@ try {
     if ($pythonRegistry -notmatch "^[a-z0-9._:/-]+$") {
         throw "Invalid COMFY_OMNI_PYTHON_REGISTRY: $pythonRegistry"
     }
+    $numericsBaseImage = if ($env:COMFY_OMNI_NUMERICS_BASE_IMAGE) {
+        $env:COMFY_OMNI_NUMERICS_BASE_IMAGE
+    }
+    else {
+        "docker.io/vllm/vllm-openai:v0.27.0"
+    }
+    if ($numericsBaseImage -notmatch "^[a-z0-9._@:/-]+$") {
+        throw "Invalid COMFY_OMNI_NUMERICS_BASE_IMAGE: $numericsBaseImage"
+    }
     $target = @{
         docs = "documentation"
         quality = "quality"
         package = "package-check"
         image = "runtime"
         cli = "runtime"
+        numerics = "numerics-runtime"
     }[$Action]
     $image = "comfy-omni:$Action-$($sourceCommit.Substring(0, 12))-py$PythonVersion"
 
@@ -40,6 +50,7 @@ try {
         --build-arg "PYTHON_REGISTRY=$pythonRegistry" `
         --build-arg "COMFY_OMNI_BUILD_COMMIT=$sourceCommit" `
         --build-arg "COMFY_OMNI_BUILD_DIRTY=$sourceDirty" `
+        --build-arg "NUMERICS_BASE_IMAGE=$numericsBaseImage" `
         --target $target `
         --tag $image `
         .

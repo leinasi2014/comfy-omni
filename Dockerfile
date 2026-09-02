@@ -2,6 +2,7 @@
 
 ARG PYTHON_VERSION=3.13
 ARG PYTHON_REGISTRY=docker.io/library
+ARG NUMERICS_BASE_IMAGE=docker.io/vllm/vllm-openai:v0.27.0
 
 FROM ${PYTHON_REGISTRY}/python:${PYTHON_VERSION}-slim-bookworm AS python-base
 
@@ -71,3 +72,33 @@ USER 65532:65532
 WORKDIR /work
 ENTRYPOINT ["comfy-omni"]
 CMD ["--help"]
+
+FROM ${NUMERICS_BASE_IMAGE} AS numerics-runtime
+
+ARG COMFY_OMNI_BUILD_COMMIT
+ARG COMFY_OMNI_BUILD_DIRTY
+
+ENV COMFY_OMNI_BUILD_COMMIT=${COMFY_OMNI_BUILD_COMMIT} \
+    COMFY_OMNI_BUILD_DIRTY=${COMFY_OMNI_BUILD_DIRTY} \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN case "${COMFY_OMNI_BUILD_COMMIT}" in \
+      *[!0-9a-f]*|'') echo 'COMFY_OMNI_BUILD_COMMIT must be a lowercase Git SHA' >&2; exit 2 ;; \
+    esac \
+    && test "${#COMFY_OMNI_BUILD_COMMIT}" -eq 40 \
+    && case "${COMFY_OMNI_BUILD_DIRTY}" in 0|1) ;; *) exit 2 ;; esac
+
+WORKDIR /opt/comfy-omni
+COPY pyproject.toml setup.py README.md LICENSE ./
+COPY src ./src
+RUN python3 -m pip install --no-cache-dir --no-deps . \
+    && mkdir /work \
+    && chown 65532:65532 /work
+
+USER 65532:65532
+WORKDIR /work
+ENTRYPOINT ["python3"]
+CMD ["-c", "from comfy_omni.conversion.numerics import regular_hadamard; print(regular_hadamard(4).shape)"]
