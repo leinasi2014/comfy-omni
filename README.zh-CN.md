@@ -49,7 +49,8 @@ import package 应当是合法标识符。GitHub 可能把只有一个子目录�
 兼容性声明使用。
 
 现有 H3 实现暂时保留在旧工作区；代码只有在完成来源、许可证、合同、测试和模块归属审计后才会迁移。
-服务器验证目前明确延后；在取得服务器证据前，当前候选不能视为已验收或可发布。
+摘要固定的服务器测试模型集现已冻结，外部资产正在准备；在取得对应运行时证据前，当前候选仍不能
+视为已验收或可发布。
 
 <!-- README_SYNC: goals -->
 ## 设计目标
@@ -61,6 +62,8 @@ import package 应当是合法标识符。GitHub 可能把只有一个子目录�
 - 禁止转换、反量化和映射工作进入推理热路径。
 - 把运行时特定代码隔离到 `integrations/vllm_omni` 等 integration 中。
 - 提供统一的 Python API、CLI、错误模型、测试基线和发布流程。
+- 在修改运行时前证明 LoRA 兼容性，并对不支持的底模／adapter 组合 fail closed。
+- 在同一个宿主进程完成完整 DiT 的 A → B → A 热切换，验证模型身份、缓存失效、失败恢复和资源回收。
 
 <!-- README_SYNC: architecture -->
 ## 架构
@@ -93,11 +96,14 @@ CLI / HTTP API / runtime integrations
 | M3 | 单一 bootstrap 与依赖方向 | 一个惰性、幂等 bootstrap；消除插件递归、public facade 反向依赖和 import cycle | 计划中 |
 | M4 | 转换模块化 | inspection、contract、mapping、exporter、LoRA conversion、packaging 和 publication 各有明确 owner | 计划中 |
 | M5 | 运行时模块化 | runtime service 与离线 conversion、vLLM-Omni 宿主子类彻底分离 | 计划中 |
-| M6 | 运行时验收 | 固定 vLLM-Omni adapter 通过 package、load、request、parity 和 fail-closed 验收门 | 计划中 |
+| M6 | 运行时验收 | 固定 vLLM-Omni adapter 与摘要绑定模型集通过 package、load、request、LoRA preflight／生命周期、完整 DiT A → B → A 热切换、parity 和 fail-closed 验收门 | 计划中 |
 | M7 | 开源预览版 | 发布许可证清晰、文档同步、制品可复现的 `0.2.0a1` 或 `0.2.0b1` | 计划中 |
 
 详细顺序和出口条件见
 [合并后重构与开源整理方案](docs/post-merge-refactoring-plan.md)。
+外部测试资产与证据规则固定在
+[模型验证基线](docs/testing/model-validation-baseline.md)；模型 payload 永远不会存入本仓库，也不会由
+普通 CI 下载。
 
 <!-- README_SYNC: layout -->
 ## 仓库结构
@@ -135,9 +141,8 @@ comfy-omni --help
 comfy-omni --version
 ```
 
-目前只提供项目身份能力，尚未迁移旧命令。语言、lint、测试、打包和真实宿主门会随对应里程碑落地后
-成为强制检查。按当前维护者要求，本地测试延后，只有指定服务器运行才能形成验收证据；延后或缺失的
-检查不能伪装成通过。
+目前只提供项目身份能力，尚未迁移旧命令。快速、确定性的仓库检查会随里程碑在本地和 CI 执行；GPU
+与运行时验收只在指定服务器针对摘要绑定资产运行。延后、缺失或目标不同的检查都不能伪装成通过。
 
 <!-- README_SYNC: contributing -->
 ## 参与贡献

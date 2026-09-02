@@ -1,6 +1,8 @@
 # ComfyOmni documentation
 
 - [Post-merge refactoring and open-source plan](post-merge-refactoring-plan.md)
+- [Pinned model validation baseline](testing/model-validation-baseline.md)
+- [Machine-readable model baseline v1](testing/model-baseline.v1.json)
 
 This directory is the documentation root for the new ComfyOmni project skeleton. Historical
 `h3-forge` documents remain in the legacy repository until their authority and licensing

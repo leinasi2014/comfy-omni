@@ -52,9 +52,9 @@ patch has migrated yet. Do not treat the walking skeleton as a production runtim
 claim.
 
 The existing H3 implementation remains in the legacy workspace while code origin, licensing,
-contracts, tests, and module ownership are audited before migration. Server verification is
-deliberately deferred and the current candidate is not accepted or releasable until that evidence
-exists.
+contracts, tests, and module ownership are audited before migration. The digest-pinned server model
+set is now frozen and its external assets are being prepared, but the current candidate is not
+accepted or releasable until the corresponding runtime evidence exists.
 
 <!-- README_SYNC: goals -->
 ## Design goals
@@ -66,6 +66,9 @@ exists.
 - Keep conversion, dequantization, and mapping work out of the inference hot path.
 - Isolate runtime-specific code behind integrations such as `integrations/vllm_omni`.
 - Provide one consistent Python API, CLI, error model, test baseline, and release process.
+- Prove LoRA compatibility before runtime mutation and fail closed for unsupported base/adapter pairs.
+- Demonstrate full-DiT A-to-B-to-A hot switching in one host process with correct model identity,
+  cache invalidation, failure recovery, and resource reclamation.
 
 <!-- README_SYNC: architecture -->
 ## Architecture
@@ -99,11 +102,14 @@ used as an internal dependency shortcut.
 | M3 | Single bootstrap and dependency direction | One lazy, idempotent plugin bootstrap; no plugin recursion, public-facade back edges, or import cycles | Planned |
 | M4 | Conversion modularization | Inspection, contracts, mapping, exporters, LoRA conversion, packaging, and publication have explicit owners | Planned |
 | M5 | Runtime modularization | Runtime services are separated from offline conversion and vLLM-Omni host subclasses | Planned |
-| M6 | Runtime acceptance | Pinned vLLM-Omni adapter passes package, load, request, parity, and fail-closed acceptance gates | Planned |
+| M6 | Runtime acceptance | Pinned vLLM-Omni adapter and digest-bound model suite pass package, load, request, LoRA preflight/lifecycle, full-DiT A-to-B-to-A hot-swap, parity, and fail-closed gates | Planned |
 | M7 | Open-source preview | License-cleared `0.2.0a1` or `0.2.0b1` release with synchronized docs and reproducible artifacts | Planned |
 
 Detailed sequencing and exit criteria are maintained in the
 [post-merge refactoring and open-source plan](docs/post-merge-refactoring-plan.md).
+The external test assets and evidence rules are frozen in the
+[model validation baseline](docs/testing/model-validation-baseline.md); model payloads are never
+stored in this repository or downloaded by ordinary CI.
 
 <!-- README_SYNC: layout -->
 ## Repository layout
@@ -141,10 +147,10 @@ comfy-omni --help
 comfy-omni --version
 ```
 
-This exposes project identity only; it does not migrate legacy commands. Language, lint, test,
-package, and host gates become mandatory as their corresponding milestone lands. Per the current
-maintainer direction, local tests are deferred and only the designated server run can provide
-acceptance evidence. A deferred or missing check is not a pass.
+This exposes project identity only; it does not migrate legacy commands. Fast deterministic
+repository checks run locally and in CI as their milestones land; GPU and runtime acceptance runs
+only on the designated server against digest-bound assets. A deferred, missing, or differently
+targeted check is not a pass.
 
 <!-- README_SYNC: contributing -->
 ## Contributing

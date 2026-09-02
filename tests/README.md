@@ -7,5 +7,7 @@
 - `host/`: pinned real-host or frozen-host acceptance tests.
 - `fixtures/`: small, license-cleared, non-sensitive test inputs.
 
-Test files will be added with the implementation slices they characterize. Empty lane markers keep
-the reviewed test taxonomy visible without pretending that tests already exist.
+Tests are added with the implementation slices they characterize. The first contract test freezes
+the external validation-model manifest without downloading or redistributing model payloads. Empty
+lane markers keep the remaining reviewed test taxonomy visible without pretending those lanes have
+already been implemented.

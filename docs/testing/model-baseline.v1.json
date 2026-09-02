@@ -1,0 +1,202 @@
+{
+  "schema_id": "comfy-omni.test-model-baseline/v1",
+  "status": "pinned-for-validation",
+  "updated": "2026-09-02",
+  "download_policy": "maintainer-managed-external-only",
+  "redistribute_with_comfy_omni": false,
+  "assets": [
+    {
+      "id": "primary-dit",
+      "role": "diffusion-checkpoint",
+      "provider": "huggingface",
+      "repository": "TenStrip/10Eros-Max",
+      "revision": "3c071106f5b62c02b3cb0b7d831083cdb582b289",
+      "filename": "10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors",
+      "source_url": "https://huggingface.co/TenStrip/10Eros-Max/blob/3c071106f5b62c02b3cb0b7d831083cdb582b289/10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors",
+      "bytes": 20967637320,
+      "sha256": "54d56b15c65923b54c9ca16b494dae641bfe9455cfcb1c19c49b1008e270bbc1",
+      "license": "minimax-h3-community-license-agreement",
+      "risk_flags": [
+        "sensitive-content-repository"
+      ],
+      "validation_uses": [
+        "inspection",
+        "conversion",
+        "package-load",
+        "generation-baseline",
+        "hot-swap-a"
+      ]
+    },
+    {
+      "id": "text-encoder",
+      "role": "text-encoder",
+      "provider": "modelscope",
+      "repository": "Abiray/Qwen3-VL-32B-Heretic-MiniMax-H3-nvfp4-ComfyUI",
+      "revision": "master",
+      "filename": "qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors",
+      "source_url": "https://modelscope.cn/models/Abiray/Qwen3-VL-32B-Heretic-MiniMax-H3-nvfp4-ComfyUI/file/view/master/qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors",
+      "bytes": 15683129659,
+      "sha256": "47babbb3e4b7e43c097351ca39cfb7f326d014ae53a584f8559dc8121abca94c",
+      "source_binding": "modelscope-x-linked-etag-sha256",
+      "license": "upstream-review-required-before-public-evidence",
+      "risk_flags": [],
+      "validation_uses": [
+        "inspection",
+        "package-load",
+        "prompt-encoding"
+      ]
+    },
+    {
+      "id": "audio-vae",
+      "role": "audio-vae",
+      "provider": "huggingface",
+      "repository": "Comfy-Org/MiniMax-H3",
+      "revision": "3f57e8291d2ef846f9a074b1b76d2767db434abe",
+      "filename": "minimax_h3_audio_vae_fp32.safetensors",
+      "source_url": "https://huggingface.co/Comfy-Org/MiniMax-H3/blob/3f57e8291d2ef846f9a074b1b76d2767db434abe/vae/minimax_h3_audio_vae_fp32.safetensors",
+      "bytes": 605254808,
+      "sha256": "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
+      "license": "minimax-h3-community-license-agreement",
+      "risk_flags": [],
+      "validation_uses": [
+        "inspection",
+        "package-load",
+        "audio-decode"
+      ]
+    },
+    {
+      "id": "video-vae",
+      "role": "video-vae",
+      "provider": "huggingface",
+      "repository": "Comfy-Org/MiniMax-H3",
+      "revision": "3f57e8291d2ef846f9a074b1b76d2767db434abe",
+      "filename": "minimax_h3_video_vae_fp16.safetensors",
+      "source_url": "https://huggingface.co/Comfy-Org/MiniMax-H3/blob/3f57e8291d2ef846f9a074b1b76d2767db434abe/vae/minimax_h3_video_vae_fp16.safetensors",
+      "bytes": 5207808496,
+      "sha256": "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+      "license": "minimax-h3-community-license-agreement",
+      "risk_flags": [],
+      "validation_uses": [
+        "inspection",
+        "package-load",
+        "video-decode"
+      ]
+    },
+    {
+      "id": "spatial-physics-lora",
+      "role": "lora-candidate",
+      "provider": "huggingface",
+      "repository": "Jojocodex/minimax-h3-spatial-physics-lora",
+      "revision": "476b24df28b9b7cc5481b750469698f5cc4b0558",
+      "filename": "wushu_spatial_physics_clean_3000_pruned.safetensors",
+      "source_url": "https://huggingface.co/Jojocodex/minimax-h3-spatial-physics-lora/blob/476b24df28b9b7cc5481b750469698f5cc4b0558/wushu_spatial_physics_clean_3000_pruned.safetensors",
+      "bytes": 155109672,
+      "sha256": "7d14f3701560068e7004159c8b2a7278bd2dbfc9e5e3b60d0bc9aef6c049919d",
+      "license": "Apache-2.0",
+      "risk_flags": [
+        "experimental-upstream"
+      ],
+      "validation_uses": [
+        "inspection",
+        "compatibility-preflight",
+        "conditional-lora-activation"
+      ],
+      "test_parameters": {
+        "initial_scales": [
+          0.3,
+          0.5
+        ]
+      }
+    },
+    {
+      "id": "realism-people-lora",
+      "role": "lora-candidate",
+      "provider": "huggingface",
+      "repository": "fal/MiniMax-H3-Realism-People-LoRA",
+      "revision": "039cc8579d7aa357a882d7f4111b25da4f72dccc",
+      "filename": "h3-realism-people-t2v-i2v-r2v.safetensors",
+      "source_url": "https://huggingface.co/fal/MiniMax-H3-Realism-People-LoRA/blob/039cc8579d7aa357a882d7f4111b25da4f72dccc/h3-realism-people-t2v-i2v-r2v.safetensors",
+      "bytes": 131229656,
+      "sha256": "acc529601d2da117fb81179e76c56e488a3beab1171659d305f04fa3655b787e",
+      "license": "minimax-h3-community-license",
+      "risk_flags": [],
+      "validation_uses": [
+        "inspection",
+        "compatibility-preflight",
+        "conditional-lora-activation"
+      ],
+      "test_parameters": {
+        "trigger": "r34l1sm",
+        "baseline_scale": 1.0,
+        "lighter_scales": [
+          0.6,
+          0.8
+        ]
+      }
+    },
+    {
+      "id": "hot-swap-dit",
+      "role": "diffusion-checkpoint",
+      "provider": "huggingface",
+      "repository": "joeygambino/MiniMax-H3-x-Z-Image-native",
+      "revision": "113de7b82dfb34a9a8958077c94cd3787c9b782e",
+      "filename": "minimax_h3_ref2va_pruned_zs05_int8_convrot.safetensors",
+      "source_url": "https://huggingface.co/joeygambino/MiniMax-H3-x-Z-Image-native/blob/113de7b82dfb34a9a8958077c94cd3787c9b782e/minimax_h3_ref2va_pruned_zs05_int8_convrot.safetensors",
+      "bytes": 20970379680,
+      "sha256": "71b8085ac4221ee036708c230a007d617dccca1b0028b95bb4ee106cb2a385c5",
+      "license": "minimax-h3-community-license",
+      "risk_flags": [],
+      "validation_uses": [
+        "inspection",
+        "package-load",
+        "generation-candidate",
+        "hot-swap-b"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "artifact-identity",
+      "asset_ids": [
+        "primary-dit",
+        "text-encoder",
+        "audio-vae",
+        "video-vae",
+        "spatial-physics-lora",
+        "realism-people-lora",
+        "hot-swap-dit"
+      ],
+      "required_outcome": "Every payload matches its pinned byte size and SHA256 before inspection or load."
+    },
+    {
+      "id": "primary-runtime-smoke",
+      "asset_ids": [
+        "primary-dit",
+        "text-encoder",
+        "audio-vae",
+        "video-vae"
+      ],
+      "required_outcome": "The pinned package loads and produces digest-bound video and audio smoke evidence on the designated GPU host."
+    },
+    {
+      "id": "lora-compatibility",
+      "asset_ids": [
+        "primary-dit",
+        "spatial-physics-lora",
+        "realism-people-lora"
+      ],
+      "required_outcome": "Preflight proves a supported mapping or rejects the pairing with a stable reason before runtime mutation; activation runs only after a supported verdict."
+    },
+    {
+      "id": "full-dit-hot-swap",
+      "asset_ids": [
+        "primary-dit",
+        "hot-swap-dit",
+        "text-encoder",
+        "audio-vae",
+        "video-vae"
+      ],
+      "required_outcome": "One host process completes A-to-B-to-A switching, reports the correct digest-bound active model at each step, generates after every switch, invalidates stale caches, and returns resources within the declared budget."
+    }
+  ]
+}
