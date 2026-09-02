@@ -10,8 +10,8 @@ from comfy_omni.contracts.conversion import PROFILE_DENSE_BF16_ONLINE_INT8
 from comfy_omni.contracts.models import ArchitectureTemplate, ContractCatalog, ContractError
 from comfy_omni.contracts.templates import ARCHITECTURE_TEMPLATES
 from comfy_omni.conversion.contract_workflows.census import CensusEngine
-from comfy_omni.conversion.exporters.models import NativeExportPlan
 from comfy_omni.conversion.exporters.execution import execute_native_export
+from comfy_omni.conversion.exporters.models import NativeExportPlan
 from comfy_omni.conversion.exporters.planning import (
     DEFAULT_MAX_ROWS,
     DEFAULT_MAX_SHARD_BYTES,
