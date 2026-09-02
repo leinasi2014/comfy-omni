@@ -1,6 +1,7 @@
 # ComfyOmni documentation
 
 - [Post-merge refactoring and open-source plan](post-merge-refactoring-plan.md)
+- [Agile delivery agreement](development/delivery.md)
 - [Docker-first execution policy](development/docker-first.md)
 - [Validated target architecture](architecture/README.md)
 - [Pinned model validation baseline](testing/model-validation-baseline.md)

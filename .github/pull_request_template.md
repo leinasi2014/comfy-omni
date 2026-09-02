@@ -1,35 +1,62 @@
-## Summary
+## Outcome and acceptance
 
-<!-- What problem does this PR solve, and what is the intended outcome? -->
+<!-- Link the live Issue. Who benefits, what observable behavior changes, and what one scenario proves it? -->
+
+## Non-goals
+
+<!-- State what this slice deliberately does not claim or change. -->
+
+## Frozen contract
+
+<!-- Boundary/state owner, failure/rollback semantics, compatibility, security/resource limits. -->
 
 ## Scope
 
-<!-- List the modules/files changed and the primary structural goal. -->
+<!-- Primary goal, modules/files changed, and dependency direction. Keep one main goal per PR. -->
 
 ## Contract impact
 
-<!-- Python API, CLI, entry points, HTTP, environment variables, runtime keys, schemas, errors. -->
+<!-- Python/CLI/plugin/HTTP/environment/runtime/artifact/error contracts. -->
 
 - [ ] No public-contract change
 - [ ] Public-contract change is documented, versioned, and migration-tested
 
+## TDD evidence
+
+### RED
+
+<!-- Accepted base/candidate, exact Docker run or observation, intended failure, and result. -->
+
+### GREEN
+
+<!-- Smallest causal change and focused result, with exact candidate/run identity. -->
+
+### REFACTOR
+
+<!-- Structural cleanup, or state none; show that focused behavior stayed green. -->
+
 ## Verification
 
-<!-- Include exact commands and results. -->
+<!-- Exact Docker/CI/server commands or run URLs, counts, digests, identities, and unavailable gates. -->
 
-- [ ] Relevant tests pass
-- [ ] Ruff/format checks pass when Python code changes
+- [ ] Relevant focused and full tests pass
+- [ ] Ruff/format checks pass when Python changes
 - [ ] Packaging/clean-install checks pass when packaging changes
-- [ ] Host validation is attached when runtime behavior changes
+- [ ] Representative server evidence is attached when a real boundary changes
+- [ ] Evidence is bound to the exact source, image/package, configuration, and assets
 
 ## Documentation and provenance
 
-- [ ] `README.md` and `README.zh-CN.md` were updated together, or neither needed an update
-- [ ] `./scripts/docker.sh docs 3.13` passes
-- [ ] No project command or dependency was executed/installed on the host; any approved exception is documented
-- [ ] Documentation/ADR impact is addressed
-- [ ] New or migrated code/assets have source, license, and attribution disposition
+- [ ] `README.md` and `README.zh-CN.md` changed together, or neither needed an update
+- [ ] Docker documentation contracts pass
+- [ ] No project command/dependency ran or installed on a host; approved exceptions are documented
+- [ ] Architecture, operator, testing, and license documentation is current
+- [ ] Migrated code/assets record source commit/blob, license, attribution, and disposition
 
 ## Migration and rollback
 
-<!-- State the migration order, compatibility shim (if any), and rollback procedure. -->
+<!-- Migration order, compatibility shim, state mutation, rollback, and remaining limitations. -->
+
+## Integration read-back
+
+<!-- Complete after merge: protected-main commit and main push check results. -->
