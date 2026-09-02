@@ -87,7 +87,7 @@ not direct ConvRot loading.
 The currently authorized first conversion source on `srv-00` is the MiniMax-H3 × Z-Image Ref2VA
 hot-switch candidate:
 
-- file SHA-256: `71b808ddf57895461249e8f3e43ee27ca5fa01deff20fd3c4f18b82b1da480bd`;
+- file SHA-256: `71b8085ac4221ee036708c230a007d617dccca1b0028b95bb4ee106cb2a385c5`;
 - exact source schema: `cc7976f678e6d4a567e718aca56c1db4aa91adfa27108db84066cce3213edf9d`;
 - 932 tensors and 200 ConvRot groups;
 - template: `h3-transformer-50l-convrot`.
@@ -113,3 +113,6 @@ header evidence only, not conversion or inference acceptance.
 4. Run an authorized full Ref2VA conversion in a resource-bounded Docker container on `srv-00`, then
    bind numerical/output evidence to the source, converter image, and Git commit.
 5. Keep the primary 10Eros path fail-closed until its independent contract is reviewed and pinned.
+
+The completed Docker evidence for this planning slice is indexed in
+[`docs/evidence/convrot-plan-ed08abbe2df5.md`](../evidence/convrot-plan-ed08abbe2df5.md).
