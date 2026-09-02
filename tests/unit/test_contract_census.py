@@ -57,6 +57,52 @@ def test_descriptor_census_rejects_missing_marker_payload_and_marker_free_int8()
         census_tensors((TensorDescriptor("weight", "I8", (1,), (0, 1)),), {})
 
 
+def test_descriptor_census_rejects_mixed_non_convrot_markers_with_bounded_evidence() -> None:
+    nvfp4 = b'{"format":"nvfp4"}'
+    tensorwise = b'{"format":"int8_tensorwise"}'
+    descriptors = [
+        TensorDescriptor("model.embed_tokens.weight", "I8", (4, 8), (0, 32)),
+        TensorDescriptor("model.embed_tokens.weight_scale", "F32", (), (32, 36)),
+        TensorDescriptor(
+            "model.embed_tokens.comfy_quant",
+            "U8",
+            (len(tensorwise),),
+            (36, 36 + len(tensorwise)),
+        ),
+        TensorDescriptor("model.layers.0.mlp.down_proj.weight", "U8", (4, 4), (64, 80)),
+        TensorDescriptor("model.layers.0.mlp.down_proj.weight_scale", "F8_E4M3", (4, 1), (80, 84)),
+        TensorDescriptor("model.layers.0.mlp.down_proj.weight_scale_2", "F32", (1,), (84, 88)),
+        TensorDescriptor(
+            "model.layers.0.mlp.down_proj.comfy_quant",
+            "U8",
+            (len(nvfp4),),
+            (88, 88 + len(nvfp4)),
+        ),
+    ]
+    payloads = {
+        "model.embed_tokens.comfy_quant": tensorwise,
+        "model.layers.0.mlp.down_proj.comfy_quant": nvfp4,
+    }
+
+    with pytest.raises(ContractScanError, match="unsupported comfy_quant storage declarations") as caught:
+        census_tensors(descriptors, payloads)
+
+    assert caught.value.evidence == {
+        "stage": "storage-observation",
+        "reason_code": "unsupported-comfy-quant-storage",
+        "marker_count": 2,
+        "marker_declaration_census": {
+            "int8_tensorwise/non-convrot": 1,
+            "nvfp4": 1,
+        },
+        "sample_unsupported_markers": [
+            "model.embed_tokens.comfy_quant",
+            "model.layers.0.mlp.down_proj.comfy_quant",
+        ],
+    }
+    assert len(str(caught.value)) < 300
+
+
 def test_single_file_scan_binds_real_file_sha256(tmp_path: Path) -> None:
     marker = _marker()
     source = tmp_path / "tiny.safetensors"
