@@ -84,6 +84,16 @@ E3 组件树中，`transformer` 使用本仓库自己的 Ref2VA 全量转换输�
 `text_encoder` 使用 digest-pinned 规范化 strict 副本，两个 VAE 使用已验证 payload；不引入官方
 transformer/text_encoder/VAE 权重。
 
+### 2.3 组件运行时配置与代码（E4 包 v3）
+
+真实宿主加载要求组件目录携带非权重文件：`text_encoder/config.json`（Qwen3VLConfig）、两个 VAE
+的 `config.json` 与 `auto_map` 引用的 Python 代码文件。这些文件取自魔塔社区官方镜像
+`MiniMax/MiniMax-H3@master` 的 `Ref2VA/` 分区（与 Hugging Face `MiniMaxAI/MiniMax-H3` 同源），
+逐文件 SHA256 记录于 [e4-component-configs.v1.json](e4-component-configs.v1.json)（29 文件、
+178,766 字节：text_encoder 1、video_vae 16、audio_vae 12）。VAE `config.json` 的
+`latent_channels/latents_mean/latents_std` 后续按转换后负载实测派生修订（legacy 先例：从实际
+payload 张量派生统计）。下载仅在指定验证主机的 Docker 容器内经魔塔国内直连执行。
+
 ## 3. 验收场景
 
 ### 3.1 资产身份
