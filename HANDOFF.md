@@ -113,22 +113,47 @@ materialize_package -> publish_package`。
 
 Issue #9 保持打开，直到其验收条款全部满足并评审关闭。
 
-## 5. 当前唯一 WIP：E3 证据文档 PR
+### 4.6 vLLM-Omni bootstrap 与 E4 包修订（PR #33/#34，Issue #10/#11）
 
-- 分支：`codex/docs-e3-assembly-evidence`（PR #32）；`docs/evidence/native-package-assembly-b47d084.md` +
+- Bootstrap（PR #33，合并 `43b2b10`）：`plugin:register` 薄 shim →
+  `integrations.vllm_omni.bootstrap` 显式状态机；resident-host 才注册两个 wire 兼容 arch 键
+  （lazy string）；缺席/部分宿主静默延迟可重试；纯 stdlib。RED `33698445499` → GREEN 240
+  tests `33699596471`；provenance `docs/migration/vllm-omni-bootstrap-e9cb011.md`。
+- E4 分阶段 READY（Issue #11 comment 5518522663）：调研证明 pinned host `17285c2f` 只经根
+  `model_index.json` 的 `_class_name` 解析管线；`register_diffusion_model` 官方支持同键替换；
+  E3 包缺发现文件是真实缺口。
+- E4-S1（PR #34，合并 `76e2ebb`）：发布链生成 wire 兼容根 `model_index.json`（官方 Ref2VA
+  形状 + hybrid 任务路由），manifest 以 `model_index_sha256` 绑定其字节；RED `33700572914`
+  → GREEN 241 tests `33701349320`；provenance 并入
+  `docs/migration/native-package-publication-e9cb011.md`。
+- E4 包修订版已在 srv-00 发布并独立验证（2026-09-03）：候选 `76e2ebb`，wheel
+  `ea124fd4…21d7`，镜像 `sha256:f3ff2533…0d8`；manifest `bc588444…52de`、model_index
+  `a58019bf…741`、plan `b8d1efb5…c9a0`；30 文件（28 组件 + 2 生成）；verifier `VERIFIED`
+  （139.8s）。包位于 `/data/models/comfy-omni/e4-output/native-package`（E3 包原样保留）。
+  证据：`docs/evidence/native-package-assembly-76e2ebb.md` 与
+  `/home/hyl/comfy-omni-e3/run-76e2ebb-attempt1`。
+
+## 5. 当前唯一 WIP：E4 证据文档 PR
+
+- 分支：`codex/docs-e4-package-revision`；`docs/evidence/native-package-assembly-76e2ebb.md` +
   HANDOFF 更新。
 
 ## 6. 下一位执行者的精确续接步骤
 
-1. 等 E3 证据 PR 的 quality/documentation Docker checks；全绿后按模板转 ready、squash merge、
-   等 main 回读，并把证据要点评论到 Issue #9（引用 4.5 的 digest）。
-2. 下一切片（建议顺序）：
-   - 单一、lazy、idempotent 的 vLLM-Omni plugin bootstrap（`vllm_omni.general_plugins` 入口，
-     不得加载 Torch/vLLM/模型；多进程安全）；先在 Issue #9 或新 issue 冻结 READY。
-   - 随后 native load 与最小安全提示词视频/音频生成 E4（使用已发布包 + pinned host
-     `17285c2f`）；再 LoRA 只读 oracle 与 off/on/off；再 `A → B → A` E5。
-3. 服务器 E4 注意：pinned vllm-omni host commit 与本仓库 bootstrap 的对接方式尚未冻结，
-   进入前先在 issue 固化 host 侧加载路径与证据格式。
+1. 等 E4 证据 PR 的 quality/documentation Docker checks；全绿后转 ready、squash merge、
+   等 main 回读，并把 E4 包修订摘要评论到 Issue #11。
+2. E4-S2（代码切片）：`comfy_omni.integrations.vllm_omni.pipelines.runtime_pipeline.
+   H3ComfyMiniMaxH3Pipeline` —— 子类化 host 官方管线；包 manifest 自摘要/census/组件身份/
+   任务路由校验（fail-closed `UNSUPPORTED`）；E4 包布局的组件发现与权重加载（转换 DiT
+   shards、规范化 text encoder、VAE payload）。CI 无 vllm_omni，用 host-stub 合同测试 +
+   本地微型包拒绝矩阵；启动前在 Issue #11 固化细节。legacy 权威：
+   `h3/runtime_pipeline.py` blob `fa94f86da746ff9a11105584081464c1162d07b6`、
+   `h3/dense_pipeline.py` blob `6ddd34c49d532d56f568ec0010e925dbd86e5a2a`。
+3. E4-S3（服务器 GPU）：构建 pinned-host 镜像（vllm-openai 基座 + `vllm-omni@17285c2f` +
+   候选 wheel），以 E4 包为模型路径启动；证明 bootstrap 替换注册、model_index 解析、预检
+   门与基线生成（864x480/24fps/124 帧，固定安全 prompt + seed —— 执行前在 Issue #11 冻结
+   prompt/seed 与资源预算）。
+4. 之后：LoRA oracle（#12）、`A → B → A`（#13）、双语文档与 M7（#14/#6）。
 
 常用只读/编排命令：
 
