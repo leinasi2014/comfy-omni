@@ -15,14 +15,16 @@ it first. Do not create another tracker, issue mirror, agent-status stream, or r
 
 ## Work in progress
 
-The current single-integrator refactor has a WIP limit of one executable delivery slice. Design,
-implementation, review, CI, server acceptance, and integration for that slice all count as WIP.
-An urgent repair that unblocks the same slice stays under the same Issue. Start a second executable
-slice only after the first is integrated or explicitly returned to the backlog with evidence.
-
-When parallel contributors are deliberately enabled, one writer owns each mutable surface and the
-integrator serializes shared files. Parallel capacity does not change the acceptance or integration
-target.
+Parallel delivery is deliberately enabled (maintainer decision, 2026-09-03) for disjoint work
+lanes: concurrent executable slices may run when they own disjoint mutable surfaces — for example
+one repository code slice, one server-preparation lane, and one research/contract lane. Total
+executable WIP is capped at three slices. Design, implementation, review, CI, server acceptance,
+and integration each count toward that cap. One writer owns each mutable surface; shared files
+(including shared test fixtures, `HANDOFF.md`, and cross-cutting documentation) are integrated
+serially by the coordinator, and merges into `main` stay serialized through the normal gates.
+Every slice keeps its own frozen contract, observed RED, GREEN, full Docker gates, squash merge,
+and `main` read-back — parallel capacity never weakens the acceptance or integration target. An
+urgent repair that unblocks an active slice stays under the same Issue.
 
 ## Work-item contract
 
