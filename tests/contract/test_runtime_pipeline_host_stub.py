@@ -137,3 +137,26 @@ def test_pipeline_refuses_a_tampered_package_before_super_init(monkeypatch, tmp_
         runtime_pipeline.H3ComfyMiniMaxH3Pipeline(od_config=od_config, prefix="p1")
 
     assert leaf.MiniMaxH3Pipeline.constructed == []
+
+
+def test_pipeline_resolves_the_real_package_root_through_a_serving_view(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    leaf = _install_host_stubs(monkeypatch)
+    monkeypatch.delitem(
+        sys.modules,
+        "comfy_omni.integrations.vllm_omni.pipelines.runtime_pipeline",
+        raising=False,
+    )
+    runtime_pipeline = importlib.import_module("comfy_omni.integrations.vllm_omni.pipelines.runtime_pipeline")
+    from comfy_omni.integrations.vllm_omni.serving import prepare_serving_layout
+
+    _, output = _publish(tmp_path)
+    view = prepare_serving_layout(output, tmp_path / "serving")
+    od_config = types.SimpleNamespace(model=str(view))
+
+    pipeline = runtime_pipeline.H3ComfyMiniMaxH3Pipeline(od_config=od_config, prefix="p1")
+
+    assert leaf.MiniMaxH3Pipeline.constructed[-1][1] == "p1"
+    assert pipeline.comfy_omni_package.package_root == output.resolve()

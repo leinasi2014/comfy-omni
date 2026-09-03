@@ -30,6 +30,32 @@ from comfy_omni.integrations.vllm_omni.package_contract import (
     RuntimePackageContractError,
     validate_runtime_package,
 )
+from comfy_omni.integrations.vllm_omni.serving import MARKER_NAME, SERVING_PARTITION_NAME
+
+
+def _resolve_package_root(model_path: Path) -> Path:
+    """Return the real package root for a package directory or a serving view.
+
+    A real package root carries both ``model_index.json`` and the manifest. A
+    serving view (``integrations.vllm_omni.serving``) carries the model index and
+    component symlinks but no manifest; its parent holds the layout marker. For
+    a view, the real package root is recovered through the ``transformer``
+    component symlink (``<package_root>/Ref2VA/transformer``).
+    """
+    if (model_path / MODEL_INDEX_NAME).is_file() and (model_path / MANIFEST_NAME).is_file():
+        return model_path
+    if (
+        (model_path / MODEL_INDEX_NAME).is_file()
+        and (model_path.parent / MARKER_NAME).is_file()
+        and (model_path / "transformer").is_symlink()
+    ):
+        resolved = (model_path / "transformer").resolve(strict=True)
+        if resolved.parent.name == SERVING_PARTITION_NAME:
+            return resolved.parent.parent
+    raise RuntimePackageContractError(
+        "runtime package directory is missing its model index or manifest",
+        evidence={"stage": "package-binding"},
+    )
 
 
 class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
@@ -39,7 +65,9 @@ class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
     ``fa94f86da746ff9a11105584081464c1162d07b6``) is preserved; the curve-cache
     DiT swap, per-worker latch, request locks, and schedule replay are
     deliberately NOT migrated yet. This slice only verifies the package before
-    delegating to the official pipeline.
+    delegating to the official pipeline. ``od_config.model`` may be a real
+    package root or a serving layout view; validation always binds the real
+    package, while the host loads through the given path.
     """
 
     def __init__(self, *, od_config, prefix: str = "") -> None:
@@ -49,13 +77,8 @@ class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
                 "runtime package path is not set on the od_config",
                 evidence={"stage": "package-binding"},
             )
-        package_dir = Path(model_path)
-        if not (package_dir / MODEL_INDEX_NAME).is_file() or not (package_dir / MANIFEST_NAME).is_file():
-            raise RuntimePackageContractError(
-                "runtime package directory is missing its model index or manifest",
-                evidence={"stage": "package-binding"},
-            )
-        self.comfy_omni_package = validate_runtime_package(package_dir)
+        package_root = _resolve_package_root(Path(model_path))
+        self.comfy_omni_package = validate_runtime_package(package_root)
         super().__init__(od_config=od_config, prefix=prefix)
 
 
