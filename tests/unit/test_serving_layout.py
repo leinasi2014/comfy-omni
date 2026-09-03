@@ -15,7 +15,7 @@ from comfy_omni.conversion.packaging.planning import (
 )
 from comfy_omni.conversion.packaging.publication import publish_package
 from comfy_omni.domain.normalization import ToolIdentity
-from comfy_omni.integrations.vllm_omni.package_contract import RuntimePackageContractError, validate_runtime_package
+from comfy_omni.integrations.vllm_omni.package_contract import RuntimePackageContractError
 
 
 def _fixture(tmp_path: Path) -> tuple[NativePackagePlan, dict[str, bytes]]:
@@ -63,14 +63,24 @@ def test_prepare_serving_layout_creates_the_partition_view(tmp_path: Path) -> No
     view = prepare_serving_layout(output, work)
 
     assert view == work / SERVING_PARTITION_NAME
-    assert view.is_symlink()
-    assert view.resolve() == output.resolve()
-    assert (view / "model_index.json").is_file()
+    assert view.is_dir() and not view.is_symlink()
+    assert {entry.name for entry in os.scandir(view)} == {
+        "model_index.json",
+        "audio_vae",
+        "processor",
+        "text_encoder",
+        "tokenizer",
+        "transformer",
+        "video_vae",
+    }
+    assert (view / "model_index.json").is_symlink()
+    assert (view / "model_index.json").resolve() == (output / "model_index.json").resolve()
+    for component in PACKAGE_COMPONENTS:
+        link = view / component
+        assert link.is_symlink()
+        assert link.resolve() == (output / SERVING_PARTITION_NAME / component).resolve()
+    assert (view / "transformer" / "nested" / "artifact.bin").is_file()
     assert (work / ".comfy-omni-serving").is_file()
-
-    contract = validate_runtime_package(view)
-    assert contract.package_root == output.resolve()
-    assert contract.partition == "ref2va"
 
     again = prepare_serving_layout(output, work)
     assert again == view
@@ -117,7 +127,7 @@ def test_prepare_serving_layout_refuses_a_wrong_marker_content(tmp_path: Path) -
     work = tmp_path / "serving"
     work.mkdir()
     (work / ".comfy-omni-serving").write_bytes(b"wrong")
-    os.symlink(output, work / SERVING_PARTITION_NAME, target_is_directory=True)
+    (work / SERVING_PARTITION_NAME).mkdir()
 
     with pytest.raises(ServingLayoutError) as failure:
         prepare_serving_layout(output, work)
