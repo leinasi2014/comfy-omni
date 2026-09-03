@@ -24,6 +24,15 @@ working tree were not modified.
 
 This slice reimplements the manifest-last commit point of legacy package assembly:
 
+- (E4-S1, 2026-09-03) publication also emits the host-discovery `model_index.json` at the package
+  root — written after the independent staged re-read and before the manifest, restoring the legacy
+  v3 root-index behavior with the official `MiniMaxAI/MiniMax-H3@42ed227e` Ref2VA index shape
+  (component classifier pairs, `_diffusers_version`, `_minimax_h3` routing block) and the legacy
+  hybrid task list (`ref2va|t2va|fl2va` from the plan). The manifest binds its exact bytes through
+  `model_index_sha256` inside the self-digest domain. This corrects the slice-4 divergence that
+  dropped the root index: the pinned host resolves a model directory to a pipeline class only
+  through the root `model_index.json` `_class_name` field.
+
 - emit the package manifest as canonical JSON whose `package_manifest_sha256` is the SHA-256 of the
   same document excluding exactly that field;
 - write the manifest last, through an exclusive read-only create with fsync, so a package directory
@@ -51,6 +60,12 @@ plugin, or optional serving dependency.
   instead of the legacy domain error.
 
 ## Characterization evidence
+
+E4-S1 RED candidate `a02ad4f` failed only because publication emitted no model index: Docker
+quality run [`33700572914`](https://github.com/leinasi2014/comfy-omni/actions/runs/33700572914)
+reported `1 failed, 240 passed` at `assert model_index.is_file()`. GREEN candidate `9b660cd`
+passed 241 tests on both Python lanes plus the package and installed-wheel smoke in run
+[`33701349320`](https://github.com/leinasi2014/comfy-omni/actions/runs/33701349320).
 
 RED candidate `28eef7c` (single acceptance test, format-folded from the first push) failed only
 because the publication module did not exist: GitHub Docker quality run
