@@ -30,23 +30,23 @@ from comfy_omni.conversion.packaging.receipts import RECEIPT_SCHEMA, parse_compo
 from comfy_omni.conversion.packaging.verification import verify_package_sources
 
 TOTAL_FILE_COUNT = 57
-TOTAL_BYTES = 61_745_392_542
+TOTAL_BYTES = 61_745_565_714
 
 MODEL_INDEX_NAME = "model_index.json"
 
 COMPONENT_CENSUS = {
-    "audio_vae": (13, 605_286_975),
+    "audio_vae": (13, 605_461_455),
     "processor": (7, 11_498_352),
     "text_encoder": (2, 15_683_131_061),
     "tokenizer": (4, 11_492_078),
     "transformer": (14, 40_226_030_420),
-    "video_vae": (17, 5_207_953_656),
+    "video_vae": (17, 5_207_952_348),
 }
 
 SINGLE_PAYLOAD_SHA256 = {
     "audio_vae": (
-        "minimax_h3_audio_vae_fp32.safetensors",
-        "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
+        "model.safetensors",
+        "37dddc2f3e6d5d5139d823d5ea283bbf304dadcb885b1ccda818aa13dade5ea2",
     ),
     "text_encoder": (
         "qwen3vl_32b_heretic_minimax_h3_nvfp4.strict.safetensors",
@@ -54,7 +54,7 @@ SINGLE_PAYLOAD_SHA256 = {
     ),
     "video_vae": (
         "minimax_h3_video_vae_fp16.safetensors",
-        "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+        "5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148",
     ),
 }
 

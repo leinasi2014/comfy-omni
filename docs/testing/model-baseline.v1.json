@@ -64,13 +64,14 @@
     {
       "id": "audio-vae",
       "role": "audio-vae",
-      "provider": "huggingface",
-      "repository": "Comfy-Org/MiniMax-H3",
-      "revision": "3f57e8291d2ef846f9a074b1b76d2767db434abe",
-      "filename": "minimax_h3_audio_vae_fp32.safetensors",
-      "source_url": "https://huggingface.co/Comfy-Org/MiniMax-H3/blob/3f57e8291d2ef846f9a074b1b76d2767db434abe/vae/minimax_h3_audio_vae_fp32.safetensors",
-      "bytes": 605254808,
-      "sha256": "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
+      "provider": "modelscope",
+      "repository": "minimax/MiniMax-H3",
+      "revision": "master",
+      "filename": "model.safetensors",
+      "source_url": "https://modelscope.cn/models/minimax/MiniMax-H3/file/view/master/Ref2VA/audio_vae/model.safetensors",
+      "bytes": 605429308,
+      "sha256": "37dddc2f3e6d5d5139d823d5ea283bbf304dadcb885b1ccda818aa13dade5ea2",
+      "source_binding": "modelscope-x-linked-etag-sha256",
       "license": "minimax-h3-community-license-agreement",
       "risk_flags": [],
       "validation_uses": [
@@ -87,10 +88,28 @@
       "revision": "3f57e8291d2ef846f9a074b1b76d2767db434abe",
       "filename": "minimax_h3_video_vae_fp16.safetensors",
       "source_url": "https://huggingface.co/Comfy-Org/MiniMax-H3/blob/3f57e8291d2ef846f9a074b1b76d2767db434abe/vae/minimax_h3_video_vae_fp16.safetensors",
-      "bytes": 5207808496,
-      "sha256": "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+      "bytes": 5207806104,
+      "sha256": "5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148",
       "license": "minimax-h3-community-license-agreement",
       "risk_flags": [],
+      "format_conformance": {
+        "status": "nonconformant",
+        "reason_code": "safetensors-extra-latent-statistics-keys",
+        "observed_total_keys": 562,
+        "parameter_key_count": 560,
+        "extra_keys": [
+          "latents_mean",
+          "latents_std"
+        ]
+      },
+      "staging_policy": {
+        "action": "derive-strict-safetensors-copy",
+        "in_place_mutation": false,
+        "generic_extra_key_tolerance": false,
+        "source_sha256": "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+        "expected_derived_bytes": 5207806104,
+        "expected_derived_sha256": "5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148"
+      },
       "validation_uses": [
         "inspection",
         "package-load",

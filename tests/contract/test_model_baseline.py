@@ -29,13 +29,13 @@ EXPECTED_ASSETS = {
     ),
     "audio-vae": (
         "audio-vae",
-        605_254_808,
-        "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
+        605_429_308,
+        "37dddc2f3e6d5d5139d823d5ea283bbf304dadcb885b1ccda818aa13dade5ea2",
     ),
     "video-vae": (
         "video-vae",
-        5_207_808_496,
-        "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+        5_207_806_104,
+        "5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148",
     ),
     "spatial-physics-lora": (
         "lora-candidate",

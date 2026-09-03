@@ -23,8 +23,8 @@
 |---|---|---|---:|---|
 | `primary-dit` | 主 DiT | `10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors` | 20,967,637,320 | `54d56b15c65923b54c9ca16b494dae641bfe9455cfcb1c19c49b1008e270bbc1` |
 | `text-encoder` | 文本编码器 | `qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors` | 15,683,129,659 | `47babbb3e4b7e43c097351ca39cfb7f326d014ae53a584f8559dc8121abca94c` |
-| `audio-vae` | 音频 VAE | `minimax_h3_audio_vae_fp32.safetensors` | 605,254,808 | `8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48` |
-| `video-vae` | 视频 VAE | `minimax_h3_video_vae_fp16.safetensors` | 5,207,808,496 | `7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522` |
+| `audio-vae` | 音频 VAE | `model.safetensors` | 605,429,308 | `37dddc2f3e6d5d5139d823d5ea283bbf304dadcb885b1ccda818aa13dade5ea2` |
+| `video-vae` | 视频 VAE | `minimax_h3_video_vae_fp16.safetensors` | 5,207,806,104 | `5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148` |
 | `spatial-physics-lora` | LoRA 候选 | `wushu_spatial_physics_clean_3000_pruned.safetensors` | 155,109,672 | `7d14f3701560068e7004159c8b2a7278bd2dbfc9e5e3b60d0bc9aef6c049919d` |
 | `realism-people-lora` | LoRA 候选 | `h3-realism-people-t2v-i2v-r2v.safetensors` | 131,229,656 | `acc529601d2da117fb81179e76c56e488a3beab1171659d305f04fa3655b787e` |
 | `hot-swap-dit` | 完整 DiT 热切换候选 | `minimax_h3_ref2va_pruned_zs05_int8_convrot.safetensors` | 20,970,379,680 | `71b8085ac4221ee036708c230a007d617dccca1b0028b95bb4ee106cb2a385c5` |
