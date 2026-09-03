@@ -83,6 +83,44 @@ CONFIG_COMPONENT_FILES = {
     },
 }
 
+RUNTIME_COMPONENT_FILES = {
+    "audio_vae": {
+        "config.json": (1973, "d8f3bcc62e23c7e9806970fa63cca6139c06faa3797cf9c94034f60db8512771"),
+        "config.yaml": (91, "259f675c9f71eedc24ca4f23965cd32a1b3878fc894f56664c40328d99831a5e"),
+        "dac_activations.py": (2189, "74ca8bb9e8039f1ff362ca4219eee5240a7df9502f3dbdc3161d4e86fbd6dc04"),
+        "dac_alias_free_act.py": (835, "db8761e66c0eaf9fce2dcccb59162d52b22ca0de9f699cf7d21ec7cd507e86fd"),
+        "dac_alias_free_filter.py": (3300, "a369523cd7f14f4f299d8e2e47f3c473da76ed1910e6e9134fd7a9fce02537e8"),
+        "dac_alias_free_resample.py": (1740, "fe35055893833c563e42adc5e5882cbe7628c82d48d33c300fcf0a9576997910"),
+        "dac_attn_proj.py": (3317, "0e04556fa5fd38d4a71e62fcf4d3242fd9a2464fd72ed62baef2ec0980d910c6"),
+        "dac_audio_vae.py": (7266, "ec04939602d4710d039e83f558a7572547669652f7fa967e3de0a3b6c48cfd48"),
+        "dac_bigvgan.py": (7102, "f5df4e6f633e74da479549ef7a6d2684964e4b65ac42c6765be42f9c7fcb7bd2"),
+        "dac_utils.py": (362, "74ef0ba2c2a11ca35a7c0cc166fe88e564de01230000a0bcc8429103312ad9f0"),
+        "metadata.json": (440, "755d0529d43b2b5c83590f6f44ca659bc68e6a21b01d5669c93e8b2965749bff"),
+        "minimax_h3_audio_vae.py": (3532, "63bc0dab6def69480cfd77ea820f9a9a84fc4bd6e56868e4f45ec1e1e200578f"),
+    },
+    "text_encoder": {
+        "config.json": (1474, "d2dd0c60d01b9e195d9447c52da61c7302d28828524914c044d9c6e1b81d0427"),
+    },
+    "video_vae": {
+        "attention.py": (5785, "c9db8465c57f0bfb40c0194227be6e34b2c1ff7c5b5d63abca9964eed6283767"),
+        "base_module.py": (9520, "0e7ddf5086179a306298693ac461ffcbc27ccb28dbc786b1a05060de7a3357c0"),
+        "config.json": (1807, "3edd2cdd1ebc823c868be55ef917e1b3b8a398fde4d3150dae44a3bf05d9f627"),
+        "conv.py": (4487, "b3adee35f27e5d372543242aa86ce5e0138f13b794b6c81f919001e3e2346723"),
+        "flash.py": (5763, "c1918463d303a16f278a670bb4f33d3f8d6f7653b0d473313ff5835699b86d04"),
+        "func.py": (5840, "0612c26a65f095699cc7acd51937cd153584fa5a0476956e46a4679aa575c22d"),
+        "klvae.py": (48594, "d05a22b4918ad303f147d6b0d0ae9038bd1af1f810a5553b04f3542ab9bcff96"),
+        "minimax_h3_video_vae.py": (5123, "77fdea69a48485b5434f65d08096657b5d78b78b7cdf24e1241038f237720138"),
+        "norm.py": (10686, "258b120ca8d9a16366d7b811fe93eebf98fe1564db0995e8b7747229c651919a"),
+        "normalize.py": (1200, "8db651acb9eb551c906a2850bbca8e9d851f00d07b30ccf66ceb6057da687a13"),
+        "parallel.py": (12997, "7193522beafd65bc3dbe40b9843e360ab8da3a0bb211e9bfb67bb0d5d0e66919"),
+        "utils.py": (764, "309e45e9d9e33cd5516a10eac2d207eb9f940079a6d9bbe0ee80aaaf7eb42dcd"),
+        "vae_cnn.py": (8836, "3949b701e6893bd2ea070cd5b18ed8135a7c21d884290df449b1997212d65b11"),
+        "vae_module.py": (1884, "9558fb302e10a619f198e12e04701c68988e897d0b627f958f33d27fd2a30d94"),
+        "vae_processor.py": (8369, "32870580a1802d9163104a4d68170e35a4772106867181e1bd343dff11f87d2e"),
+        "vae_vit.py": (13490, "a372c28441b56ec2dbc6041dbd6ce2766c64c0e61b2c69a16594a97a11da3f58"),
+    },
+}
+
 
 def _fail(detail: str) -> None:
     raise RuntimeError(f"native package assembly acceptance failed: {detail}")
@@ -113,12 +151,17 @@ def _receipt(component: str, source: Path, tool):
         record = by_path.get(payload_name)
         if record is None or record.sha256 != payload_sha256:
             _fail(f"payload digest drifted for {component}")
-    elif component in CONFIG_COMPONENT_FILES:
+    if component in CONFIG_COMPONENT_FILES:
         for name, (size, sha256) in CONFIG_COMPONENT_FILES[component].items():
             record = by_path.get(name)
             if record is None or (record.size, record.sha256) != (size, sha256):
                 _fail(f"official config digest drifted for {component}/{name}")
-    elif component == "transformer":
+    if component in RUNTIME_COMPONENT_FILES:
+        for name, (size, sha256) in RUNTIME_COMPONENT_FILES[component].items():
+            record = by_path.get(name)
+            if record is None or (record.size, record.sha256) != (size, sha256):
+                _fail(f"runtime component digest drifted for {component}/{name}")
+    if component == "transformer":
         for name, sha256 in TRANSFORMER_CONFIG_SHA256.items():
             record = by_path.get(name)
             if record is None or record.sha256 != sha256:
