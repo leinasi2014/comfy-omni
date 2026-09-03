@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import sys
 import threading
 import types
@@ -175,20 +176,19 @@ def test_plugin_register_delegates_to_bootstrap(monkeypatch) -> None:
 
 def test_vllm_imports_are_confined_to_the_integration_boundary() -> None:
     boundary = _PACKAGE_ROOT / "integrations" / "vllm_omni"
-    forbidden_prefixes = (
-        "import vllm",
-        "from vllm",
-        "import torch",
-        "from torch",
-        "import fastapi",
-        "from fastapi",
-    )
+    forbidden_roots = {"vllm", "vllm_omni", "torch", "fastapi"}
     offenders = []
     for path in _PACKAGE_ROOT.rglob("*.py"):
         if boundary in path.parents:
             continue
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if line.strip().startswith(forbidden_prefixes):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        module_level = [node for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))]
+        for node in module_level:
+            if isinstance(node, ast.Import):
+                roots = {alias.name.split(".")[0] for alias in node.names}
+            else:
+                roots = {(node.module or "").split(".")[0]}
+            if roots & forbidden_roots:
                 offenders.append(path.relative_to(_PACKAGE_ROOT).as_posix())
                 break
 
