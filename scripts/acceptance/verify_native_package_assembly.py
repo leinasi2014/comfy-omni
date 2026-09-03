@@ -13,6 +13,7 @@ from pathlib import Path
 from comfy_omni.artifacts import fileops
 
 MANIFEST_NAME = "h3-comfy-package.json"
+MODEL_INDEX_NAME = "model_index.json"
 
 
 def _fail(detail: str) -> None:
@@ -58,9 +59,9 @@ def main() -> int:
 
     expected_files = {item["path"] for item in manifest["files"]}
     observed_files = _tree_files(package)
-    if observed_files != expected_files | {MANIFEST_NAME}:
+    if observed_files != expected_files | {MANIFEST_NAME, MODEL_INDEX_NAME}:
         missing = sorted(expected_files - observed_files)
-        unexpected = sorted(observed_files - expected_files - {MANIFEST_NAME})
+        unexpected = sorted(observed_files - expected_files - {MANIFEST_NAME, MODEL_INDEX_NAME})
         _fail(f"published census drifted: missing={missing} unexpected={unexpected}")
 
     total_bytes = 0
@@ -82,12 +83,23 @@ def main() -> int:
     if self_digest != manifest["package_manifest_sha256"] or self_digest != result["manifest_sha256"]:
         _fail("published manifest self-digest mismatch")
 
+    model_index_bytes = (package / MODEL_INDEX_NAME).read_bytes()
+    model_index = fileops.parse_json_strict(model_index_bytes)
+    if model_index["_class_name"] != "MiniMaxH3Pipeline":
+        _fail("published model_index class drifted")
+    model_index_sha256 = hashlib.sha256(model_index_bytes).hexdigest()
+    if model_index_sha256 != manifest["model_index_sha256"]:
+        _fail("published model_index_sha256 disagrees with manifest")
+    if model_index_bytes != fileops.canonical_json(model_index):
+        _fail("published model_index is not canonical")
+
     verdict = {
         "schema": "comfy-omni.e3.package-assembly-verdict/v1",
         "status": "VERIFIED",
         "package_dir": package.as_posix(),
         "plan_content_sha256": manifest["plan_content_sha256"],
         "manifest_sha256": self_digest,
+        "model_index_sha256": model_index_sha256,
         "file_count": len(manifest["files"]),
         "total_bytes": total_bytes,
         "elapsed_seconds": round(time.monotonic() - started, 3),

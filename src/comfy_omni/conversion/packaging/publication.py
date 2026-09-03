@@ -8,20 +8,74 @@ from the Apache-2.0 ``h3-forge`` package_assembler.py blob
 a deliberate strengthening over legacy in-place assembly, which assembled
 directly into the destination and left only the manifest as a last-write
 commit point.
+
+The host-discovery model index written before the manifest restores the legacy
+v3 root ``model_index.json`` behavior (the official
+``MiniMaxAI/MiniMax-H3@42ed227e`` Ref2VA index shape with the legacy hybrid
+task list), characterized from the ``h3-forge`` ``package_assembler.py`` blob
+``e64558f1d3bb6e1ee6f714b70e783d9df907f9ce`` at commit
+``e9cb011d00b028c149db3978de246c54f6e34acc`` (the
+``_deep_merge(source_index, {"_minimax_h3": {"tasks": HYBRID_TASKS}})`` plus
+``_write_exclusive(output_root / "model_index.json", ...)`` semantics).
 """
 
 from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
-from typing import NoReturn
+from types import MappingProxyType
+from typing import NoReturn, cast
 
 from comfy_omni.artifacts import fileops
 from comfy_omni.contracts.models import ContractError
 from comfy_omni.conversion.packaging.models import NativePackagePlan, PackageMaterialization, PackagePublication
 
 PACKAGE_PUBLICATION_SCHEMA = "comfy_omni.native_package.publication/v1"
+
+_MODEL_INDEX_NAME = "model_index.json"
+"""Host-discovery index emitted into every native package staging tree."""
+
+_MODEL_INDEX_TEMPLATE: Mapping[str, object] = MappingProxyType(
+    {
+        "_class_name": "MiniMaxH3Pipeline",
+        "_diffusers_version": "0.32.2",
+        "_minimax_h3": MappingProxyType(
+            {
+                "partition": "ref2va",
+                "sigma_shift_scales": MappingProxyType({"audio": 3.0, "video": 12.0}),
+                "schema_version": 1,
+                "task_aliases": MappingProxyType({}),
+                "tasks": (),
+            }
+        ),
+        "audio_vae": ("diffusers", "MiniMaxH3AudioVAE"),
+        "processor": ("transformers", "Qwen3VLProcessor"),
+        "scheduler": None,
+        "text_encoder": ("transformers", "MiniMaxH3Qwen3VLHFEncoder"),
+        "tokenizer": ("transformers", "Qwen2TokenizerFast"),
+        "transformer": ("diffusers", "MiniMaxH3DiTModel"),
+        "video_vae": ("diffusers", "MiniMaxH3VideoVAE"),
+    }
+)
+"""Frozen host-discovery model-index template; ``tasks`` is injected per plan."""
+
+
+def _materialize_model_index(tasks: tuple[str, ...]) -> dict[str, object]:
+    """Return a plain JSON-ready copy of the template with ``tasks`` injected."""
+
+    def unwrap(value: object) -> object:
+        if isinstance(value, MappingProxyType):
+            return {key: unwrap(item) for key, item in value.items()}
+        if isinstance(value, tuple):
+            return [unwrap(item) for item in value]
+        return value
+
+    index = cast(dict[str, object], unwrap(_MODEL_INDEX_TEMPLATE))
+    minimax = cast(dict[str, object], index["_minimax_h3"])
+    minimax["tasks"] = list(tasks)
+    return index
 
 
 class PackagePublicationError(ContractError):
@@ -128,6 +182,17 @@ def publish_package(plan: NativePackagePlan, materialization: PackageMaterializa
     if hashlib.sha256(fileops.canonical_json(census)).hexdigest() != materialization.files_sha256:
         _fail("package staged tree digest differs from the materialized handle", "staging-census")
 
+    model_index_bytes = fileops.canonical_json(_materialize_model_index(plan.supported_tasks))
+    model_index_sha256 = hashlib.sha256(model_index_bytes).hexdigest()
+    try:
+        fileops.write_exclusive(stage / _MODEL_INDEX_NAME, model_index_bytes)
+    except (fileops.FsopsError, OSError) as exc:
+        _fail(
+            "package host-discovery model index could not be written to staging",
+            "model-index",
+            cause=str(exc),
+        )
+
     manifest = {
         "schema": plan.output_schema,
         "plan_content_sha256": plan.content_sha256,
@@ -136,6 +201,7 @@ def publish_package(plan: NativePackagePlan, materialization: PackageMaterializa
         "components": [component.to_dict() for component in plan.components],
         "source_files_sha256": materialization.source_files_sha256,
         "staged_files_sha256": materialization.files_sha256,
+        "model_index_sha256": model_index_sha256,
         "files": [{"path": item.target_path, "sha256": item.sha256, "size": item.size} for item in plan.files],
         "file_count": len(plan.files),
         "total_bytes": sum(item.size for item in plan.files),

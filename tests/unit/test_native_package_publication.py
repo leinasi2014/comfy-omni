@@ -67,7 +67,7 @@ def test_publish_package_publishes_manifest_last_atomically(tmp_path: Path) -> N
     assert not materialized.stage_dir.exists()
     assert output.is_dir()
     on_disk = {item.relative_to(output).as_posix(): item.read_bytes() for item in output.rglob("*") if item.is_file()}
-    assert set(on_disk) == set(payloads) | {"h3-comfy-package.json"}
+    assert set(on_disk) == set(payloads) | {"h3-comfy-package.json", "model_index.json"}
     for path, payload in payloads.items():
         assert on_disk[path] == payload
     assert published.file_count == len(plan.files)

@@ -32,6 +32,8 @@ from comfy_omni.conversion.packaging.verification import verify_package_sources
 TOTAL_FILE_COUNT = 28
 TOTAL_BYTES = 61_745_213_741
 
+MODEL_INDEX_NAME = "model_index.json"
+
 COMPONENT_CENSUS = {
     "audio_vae": (1, 605_254_808),
     "processor": (7, 11_498_352),
@@ -191,6 +193,16 @@ def main() -> int:
     if self_digest != manifest["package_manifest_sha256"] or self_digest != publication.manifest_sha256:
         _fail("published manifest self-digest mismatch")
 
+    model_index_bytes = (args.output / MODEL_INDEX_NAME).read_bytes()
+    model_index = fileops.parse_json_strict(model_index_bytes)
+    if model_index["_class_name"] != "MiniMaxH3Pipeline":
+        _fail("published model_index class drifted")
+    if model_index_bytes != fileops.canonical_json(model_index):
+        _fail("published model_index is not canonical")
+    model_index_sha256 = hashlib.sha256(model_index_bytes).hexdigest()
+    if model_index_sha256 != manifest["model_index_sha256"]:
+        _fail("published model_index_sha256 disagrees with manifest")
+
     result = {
         "schema": "comfy-omni.e3.package-assembly/v1",
         "status": "ASSEMBLED_PUBLISHED",
@@ -200,6 +212,7 @@ def main() -> int:
         "source_files_sha256": verification.files_sha256,
         "staged_files_sha256": materialization.files_sha256,
         "manifest_sha256": publication.manifest_sha256,
+        "model_index_sha256": model_index_sha256,
         "file_count": TOTAL_FILE_COUNT,
         "total_bytes": TOTAL_BYTES,
         "output_dir": args.output.resolve(strict=True).as_posix(),
