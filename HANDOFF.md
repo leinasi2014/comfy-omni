@@ -89,26 +89,46 @@ documentation 合同、Ref2VA 完整转换（PR #25）、原生包规划（PR #2
 完整发布链已闭合：`parse_component_receipt -> plan_native_package -> verify_package_sources ->
 materialize_package -> publish_package`。
 
-Issue #9 在 receipt 解析与 E3 真实组包完成前保持打开。
+### 4.5 E3 前置与固定六组件真实组包（PR #31 + 服务器执行，Issue #9）
 
-## 5. 当前唯一 WIP：PR #30
+- 决策冻结：<https://github.com/leinasi2014/comfy-omni/issues/9#issuecomment-5517264707>
+- 基线扩展（PR #31，合并 `b47d084`）：官方 `MiniMaxAI/MiniMax-H3@42ed227e` 的
+  `Ref2VA/tokenizer`（4 文件）与 `Ref2VA/processor`（7 文件）入库；srv-00 Docker 内经维护者
+  loopback 隧道下载，每文件字节数 + git blob SHA-1 双验证。基线合同测试同步演进
+  （RED `33690994503` → GREEN `33691438938`，233 tests）。main 回读 `33691593802`/`33691593808`。
+- E3 真实组包已在 srv-00 完成并独立复核（2026-09-03）：候选 `b47d084`，wheel
+  `578665973c…cde483`，镜像 `sha256:89cd460e…3d27`；六组件（transformer=Ref2VA 全量转换输出
+  40,226,030,420B/14 文件、text_encoder=规范化 strict 副本、双 VAE、tokenizer/processor）receipt
+  → plan → verify → materialize → publish 全链 `ASSEMBLED_PUBLISHED`，28 文件
+  61,745,213,741B，manifest `e3577642…21bd`，plan `bf514bba…6d20`，1017.5s，峰值 RSS 52MB；
+  独立 verifier 容器 `VERIFIED`（139.7s）。证据：
+  `docs/evidence/native-package-assembly-b47d084.md` 与
+  `/home/hyl/comfy-omni-e3/run-b47d084-attempt1`。
+- 发布包位于 `srv-00:/data/models/comfy-omni/e3-output/native-package`（`Ref2VA/` +
+  `h3-comfy-package.json`）。
+- srv-00 操作要点：编排必须以 transient systemd 单元（`sudo systemd-run --uid=1000`）运行，
+  普通 ssh 后台任务会被会话回收；`umask 077` 下建出的组件/输出目录需 `chmod a+rx` 供容器
+  uid 65532 读取；跨 `/home` 与 `/data` 不能硬链接，组件目录按同盘硬链接 + 容器内 bind mount
+  组装统一 `/components`。
 
-- 分支：`codex/feat-package-receipts`，PR：<https://github.com/leinasi2014/comfy-omni/pull/30>
-- RED commit `788306c`（run `33687433419`）、GREEN commit `745a1da`（runs `33688797338` /
-  `33688797414`）、provenance 与本交接文档为后续 head。
+Issue #9 保持打开，直到其验收条款全部满足并评审关闭。
+
+## 5. 当前唯一 WIP：E3 证据文档 PR
+
+- 分支：`codex/docs-e3-assembly-evidence`（PR #32）；`docs/evidence/native-package-assembly-b47d084.md` +
+  HANDOFF 更新。
 
 ## 6. 下一位执行者的精确续接步骤
 
-1. 等 PR #30 文档 head 的 quality/documentation Docker checks；失败只做最小修复。
-2. 更新 PR #30 body（READY/RED/GREEN/REFACTOR/非目标/回滚），转 ready，全绿后 squash merge。
-3. 等 `main` push 回读；合并 commit 与 run URL 评论到 Issue #9。
-4. 下一切片建议（Issue #9 继续）：
-   - 真实工具身份解析（`resolve` ComfyOmni 自身 distribution/version/commit/wheel SHA），供 E3 使用；
-   - 或直接进入 E3：在 `srv-00` Docker 中用固定六组件真实目录走完整发布链并保留证据
-     （receipt 解析 -> plan -> verify -> materialize -> publish），E3 属于服务器侧工作，依据
-     docker-first 与 model-validation-baseline 文档。
-5. E3 之后才进入：单一 lazy idempotent vLLM-Omni bootstrap、native load、最小生成 E4、LoRA、
-   `A → B → A` E5、双语用户文档、预发布与 M7。
+1. 等 E3 证据 PR 的 quality/documentation Docker checks；全绿后按模板转 ready、squash merge、
+   等 main 回读，并把证据要点评论到 Issue #9（引用 4.5 的 digest）。
+2. 下一切片（建议顺序）：
+   - 单一、lazy、idempotent 的 vLLM-Omni plugin bootstrap（`vllm_omni.general_plugins` 入口，
+     不得加载 Torch/vLLM/模型；多进程安全）；先在 Issue #9 或新 issue 冻结 READY。
+   - 随后 native load 与最小安全提示词视频/音频生成 E4（使用已发布包 + pinned host
+     `17285c2f`）；再 LoRA 只读 oracle 与 off/on/off；再 `A → B → A` E5。
+3. 服务器 E4 注意：pinned vllm-omni host commit 与本仓库 bootstrap 的对接方式尚未冻结，
+   进入前先在 issue 固化 host 侧加载路径与证据格式。
 
 常用只读/编排命令：
 
@@ -129,7 +149,7 @@ gh run list --branch codex/feat-package-receipts --limit 6
 | ID | 文件 | bytes | SHA256 |
 | --- | --- | ---: | --- |
 | primary-dit | `10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors` | 20,967,637,320 | `54d56b15...bbc1` |
-| text-encoder | `qwen3vl_32b_hermetic_minimax_h3_nvfp4.safetensors` | 15,683,129,659 | `47babbb3...94c` |
+| text-encoder | `qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors` | 15,683,129,659 | `47babbb3...94c` |
 | audio-vae | `minimax_h3_audio_vae_fp32.safetensors` | 605,254,808 | `8e505d95...b48` |
 | video-vae | `minimax_h3_video_vae_fp16.safetensors` | 5,207,808,496 | `7c1f1314...522` |
 | spatial-physics-lora | `wushu_spatial_physics_clean_3000_pruned.safetensors` | 155,109,672 | `7d14f370...19d` |
@@ -145,17 +165,16 @@ tunnel 使用维护者提供的 VLESS 节点；ModelScope 文本编码器通过�
 `a166c7bbbe66a22065159e478335fee4a633c4a3e3bb34c8e8ac4cc91bf4996f`。不得原地修改源文件或把
 “忽略尾部”变成通用开关。
 
-E3 还需要的组件事实：`video_vae`/`audio_vae`/`tokenizer`/`processor` 四个组件的 srv-00 真实目录
-布局与转换来源尚未在证据文档中固定；进入 E3 前先在 Issue #9 固化每个组件的目录路径与生成方式
-（Ref2VA 转换输出、规范化 text encoder 派生副本等）。
+六组件目录已于 E3 固化（见 4.5）：tokenizer/processor 来自官方
+`MiniMaxAI/MiniMax-H3@42ed227e` 的 `Ref2VA/` 子目录（基线新增 `tokenizer-config`/
+`processor-config` 条目），payload 组件见 §7 表；transformer 使用 PR #25 的 Ref2VA 全量转换
+输出树。
 
 ## 8. 仍未完成
 
-- PR #30 的 ready、合并与主线回读。
-- 真实工具身份解析（E3 前置）。
-- 固定六组件真实组包 E3（srv-00 Docker，证据文档）。
+- E3 证据 PR 的门禁、合并与 Issue #9 评论。
 - 单一、lazy、idempotent vLLM-Omni plugin bootstrap 与 CLI/runtime load。
-- primary package 的 native load、最小安全提示词视频/音频生成 E4。
+- primary package 的 native load、最小安全提示词视频/音频生成 E4（使用已发布包）。
 - Spatial Physics 与 Realism People 的只读 compatibility oracle、支持时的 off/on/off 生命周期。
 - primary DiT A、Z-Image-native DiT B 的同进程 `A → B → A` E5。
 - 双语用户文档、公开许可证复核、可复现预发布和最终 M7 开源预览版。
