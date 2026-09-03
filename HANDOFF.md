@@ -41,7 +41,9 @@
 - 依赖方向固定为：
   `core -> domain/contracts/artifacts -> conversion/runtime -> application -> CLI/API/integrations`。
 - import `comfy_omni` 或插件入口不得加载 Torch、FastAPI、vLLM、模型或 checkpoint payload。
-- Git 流程：单 WIP；冻结 READY；先提交 RED；观察 Docker 红灯；GREEN；REFACTOR；短分支；PR；
+- Git 流程：并行交付已启用（维护者决定 2026-09-03，见 `docs/development/delivery.md` "Work in
+  progress"：不相交表面的切片可并行，总 WIP 上限 3，共享文件由协调者串行集成，merge 串行过门禁）；
+  每个切片仍须：冻结 READY；先提交 RED；观察 Docker 红灯；GREEN；REFACTOR；短分支；PR；
   全绿后 squash merge；最后必须等待 `main` push 自身的 Docker 回读。
 - ruff format 会把能放进 120 列的推导式/调用合并成单行；多行括号导入与单行导入混排会被
   isort 要求特定顺序——写测试时预先合并，红灯前先看是否为格式噪声。
