@@ -192,3 +192,38 @@ def test_publish_package_rejects_a_replaced_staging_directory(tmp_path: Path) ->
     assert failure.value.evidence["stage"] == "staging"
     assert not output.exists()
     assert stage.exists()
+
+
+def test_publish_package_emits_the_host_discovery_model_index(tmp_path: Path) -> None:
+    plan, _ = _fixture(tmp_path)
+    output = tmp_path / "native-package"
+
+    materialized = materialize_package(plan, output)
+    publish_package(plan, materialized)
+
+    model_index = output / "model_index.json"
+    assert model_index.is_file()
+    expected_index = {
+        "_class_name": "MiniMaxH3Pipeline",
+        "_diffusers_version": "0.32.2",
+        "_minimax_h3": {
+            "partition": "ref2va",
+            "sigma_shift_scales": {"audio": 3.0, "video": 12.0},
+            "schema_version": 1,
+            "task_aliases": {},
+            "tasks": list(plan.supported_tasks),
+        },
+        "audio_vae": ["diffusers", "MiniMaxH3AudioVAE"],
+        "processor": ["transformers", "Qwen3VLProcessor"],
+        "scheduler": None,
+        "text_encoder": ["transformers", "MiniMaxH3Qwen3VLHFEncoder"],
+        "tokenizer": ["transformers", "Qwen2TokenizerFast"],
+        "transformer": ["diffusers", "MiniMaxH3DiTModel"],
+        "video_vae": ["diffusers", "MiniMaxH3VideoVAE"],
+    }
+    parsed = fileops.parse_json_strict(model_index.read_bytes())
+    assert parsed == expected_index
+    assert model_index.read_bytes() == fileops.canonical_json(parsed)
+
+    manifest = fileops.parse_json_strict((output / "h3-comfy-package.json").read_bytes())
+    assert manifest["model_index_sha256"] == hashlib.sha256(model_index.read_bytes()).hexdigest()
