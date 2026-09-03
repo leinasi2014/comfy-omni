@@ -29,24 +29,33 @@ from comfy_omni.conversion.packaging.publication import PACKAGE_PUBLICATION_SCHE
 from comfy_omni.conversion.packaging.receipts import RECEIPT_SCHEMA, parse_component_receipt
 from comfy_omni.conversion.packaging.verification import verify_package_sources
 
-TOTAL_FILE_COUNT = 28
-TOTAL_BYTES = 61_745_213_741
+TOTAL_FILE_COUNT = 57
+TOTAL_BYTES = 61_745_392_507
 
 MODEL_INDEX_NAME = "model_index.json"
 
 COMPONENT_CENSUS = {
-    "audio_vae": (1, 605_254_808),
+    "audio_vae": (13, 605_286_955),
     "processor": (7, 11_498_352),
-    "text_encoder": (1, 15_683_129_587),
+    "text_encoder": (2, 15_683_131_061),
     "tokenizer": (4, 11_492_078),
     "transformer": (14, 40_226_030_420),
-    "video_vae": (1, 5_207_808_496),
+    "video_vae": (17, 5_207_953_641),
 }
 
 SINGLE_PAYLOAD_SHA256 = {
-    "audio_vae": "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
-    "text_encoder": "a166c7bbbe66a22065159e478335fee4a633c4a3e3bb34c8e8ac4cc91bf4996f",
-    "video_vae": "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+    "audio_vae": (
+        "minimax_h3_audio_vae_fp32.safetensors",
+        "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
+    ),
+    "text_encoder": (
+        "qwen3vl_32b_heretic_minimax_h3_nvfp4.strict.safetensors",
+        "a166c7bbbe66a22065159e478335fee4a633c4a3e3bb34c8e8ac4cc91bf4996f",
+    ),
+    "video_vae": (
+        "minimax_h3_video_vae_fp16.safetensors",
+        "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+    ),
 }
 
 TRANSFORMER_CONFIG_SHA256 = {
@@ -100,8 +109,9 @@ def _receipt(component: str, source: Path, tool):
         _fail(f"receipt census drifted for {component}")
     by_path = {item.path: item for item in receipt.files}
     if component in SINGLE_PAYLOAD_SHA256:
-        (record,) = receipt.files
-        if record.sha256 != SINGLE_PAYLOAD_SHA256[component]:
+        payload_name, payload_sha256 = SINGLE_PAYLOAD_SHA256[component]
+        record = by_path.get(payload_name)
+        if record is None or record.sha256 != payload_sha256:
             _fail(f"payload digest drifted for {component}")
     elif component in CONFIG_COMPONENT_FILES:
         for name, (size, sha256) in CONFIG_COMPONENT_FILES[component].items():

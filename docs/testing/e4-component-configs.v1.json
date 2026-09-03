@@ -1,0 +1,211 @@
+{
+  "files": [
+    {
+      "bytes": 1973,
+      "component": "audio_vae",
+      "file": "config.json",
+      "sha256": "d8f3bcc62e23c7e9806970fa63cca6139c06faa3797cf9c94034f60db8512771",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/config.json"
+    },
+    {
+      "bytes": 91,
+      "component": "audio_vae",
+      "file": "config.yaml",
+      "sha256": "259f675c9f71eedc24ca4f23965cd32a1b3878fc894f56664c40328d99831a5e",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/config.yaml"
+    },
+    {
+      "bytes": 2189,
+      "component": "audio_vae",
+      "file": "dac_activations.py",
+      "sha256": "74ca8bb9e8039f1ff362ca4219eee5240a7df9502f3dbdc3161d4e86fbd6dc04",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_activations.py"
+    },
+    {
+      "bytes": 835,
+      "component": "audio_vae",
+      "file": "dac_alias_free_act.py",
+      "sha256": "db8761e66c0eaf9fce2dcccb59162d52b22ca0de9f699cf7d21ec7cd507e86fd",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_alias_free_act.py"
+    },
+    {
+      "bytes": 3300,
+      "component": "audio_vae",
+      "file": "dac_alias_free_filter.py",
+      "sha256": "a369523cd7f14f4f299d8e2e47f3c473da76ed1910e6e9134fd7a9fce02537e8",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_alias_free_filter.py"
+    },
+    {
+      "bytes": 1740,
+      "component": "audio_vae",
+      "file": "dac_alias_free_resample.py",
+      "sha256": "fe35055893833c563e42adc5e5882cbe7628c82d48d33c300fcf0a9576997910",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_alias_free_resample.py"
+    },
+    {
+      "bytes": 3317,
+      "component": "audio_vae",
+      "file": "dac_attn_proj.py",
+      "sha256": "0e04556fa5fd38d4a71e62fcf4d3242fd9a2464fd72ed62baef2ec0980d910c6",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_attn_proj.py"
+    },
+    {
+      "bytes": 7266,
+      "component": "audio_vae",
+      "file": "dac_audio_vae.py",
+      "sha256": "ec04939602d4710d039e83f558a7572547669652f7fa967e3de0a3b6c48cfd48",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_audio_vae.py"
+    },
+    {
+      "bytes": 7102,
+      "component": "audio_vae",
+      "file": "dac_bigvgan.py",
+      "sha256": "f5df4e6f633e74da479549ef7a6d2684964e4b65ac42c6765be42f9c7fcb7bd2",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_bigvgan.py"
+    },
+    {
+      "bytes": 362,
+      "component": "audio_vae",
+      "file": "dac_utils.py",
+      "sha256": "74ef0ba2c2a11ca35a7c0cc166fe88e564de01230000a0bcc8429103312ad9f0",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/dac_utils.py"
+    },
+    {
+      "bytes": 440,
+      "component": "audio_vae",
+      "file": "metadata.json",
+      "sha256": "755d0529d43b2b5c83590f6f44ca659bc68e6a21b01d5669c93e8b2965749bff",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/metadata.json"
+    },
+    {
+      "bytes": 3532,
+      "component": "audio_vae",
+      "file": "minimax_h3_audio_vae.py",
+      "sha256": "63bc0dab6def69480cfd77ea820f9a9a84fc4bd6e56868e4f45ec1e1e200578f",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/audio_vae/minimax_h3_audio_vae.py"
+    },
+    {
+      "bytes": 1474,
+      "component": "text_encoder",
+      "file": "config.json",
+      "sha256": "d2dd0c60d01b9e195d9447c52da61c7302d28828524914c044d9c6e1b81d0427",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/text_encoder/config.json"
+    },
+    {
+      "bytes": 5785,
+      "component": "video_vae",
+      "file": "attention.py",
+      "sha256": "c9db8465c57f0bfb40c0194227be6e34b2c1ff7c5b5d63abca9964eed6283767",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/attention.py"
+    },
+    {
+      "bytes": 9520,
+      "component": "video_vae",
+      "file": "base_module.py",
+      "sha256": "0e7ddf5086179a306298693ac461ffcbc27ccb28dbc786b1a05060de7a3357c0",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/base_module.py"
+    },
+    {
+      "bytes": 1807,
+      "component": "video_vae",
+      "file": "config.json",
+      "sha256": "3edd2cdd1ebc823c868be55ef917e1b3b8a398fde4d3150dae44a3bf05d9f627",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/config.json"
+    },
+    {
+      "bytes": 4487,
+      "component": "video_vae",
+      "file": "conv.py",
+      "sha256": "b3adee35f27e5d372543242aa86ce5e0138f13b794b6c81f919001e3e2346723",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/conv.py"
+    },
+    {
+      "bytes": 5763,
+      "component": "video_vae",
+      "file": "flash.py",
+      "sha256": "c1918463d303a16f278a670bb4f33d3f8d6f7653b0d473313ff5835699b86d04",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/flash.py"
+    },
+    {
+      "bytes": 5840,
+      "component": "video_vae",
+      "file": "func.py",
+      "sha256": "0612c26a65f095699cc7acd51937cd153584fa5a0476956e46a4679aa575c22d",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/func.py"
+    },
+    {
+      "bytes": 48594,
+      "component": "video_vae",
+      "file": "klvae.py",
+      "sha256": "d05a22b4918ad303f147d6b0d0ae9038bd1af1f810a5553b04f3542ab9bcff96",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/klvae.py"
+    },
+    {
+      "bytes": 5123,
+      "component": "video_vae",
+      "file": "minimax_h3_video_vae.py",
+      "sha256": "77fdea69a48485b5434f65d08096657b5d78b78b7cdf24e1241038f237720138",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/minimax_h3_video_vae.py"
+    },
+    {
+      "bytes": 10686,
+      "component": "video_vae",
+      "file": "norm.py",
+      "sha256": "258b120ca8d9a16366d7b811fe93eebf98fe1564db0995e8b7747229c651919a",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/norm.py"
+    },
+    {
+      "bytes": 1200,
+      "component": "video_vae",
+      "file": "normalize.py",
+      "sha256": "8db651acb9eb551c906a2850bbca8e9d851f00d07b30ccf66ceb6057da687a13",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/normalize.py"
+    },
+    {
+      "bytes": 12997,
+      "component": "video_vae",
+      "file": "parallel.py",
+      "sha256": "7193522beafd65bc3dbe40b9843e360ab8da3a0bb211e9bfb67bb0d5d0e66919",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/parallel.py"
+    },
+    {
+      "bytes": 764,
+      "component": "video_vae",
+      "file": "utils.py",
+      "sha256": "309e45e9d9e33cd5516a10eac2d207eb9f940079a6d9bbe0ee80aaaf7eb42dcd",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/utils.py"
+    },
+    {
+      "bytes": 8836,
+      "component": "video_vae",
+      "file": "vae_cnn.py",
+      "sha256": "3949b701e6893bd2ea070cd5b18ed8135a7c21d884290df449b1997212d65b11",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/vae_cnn.py"
+    },
+    {
+      "bytes": 1884,
+      "component": "video_vae",
+      "file": "vae_module.py",
+      "sha256": "9558fb302e10a619f198e12e04701c68988e897d0b627f958f33d27fd2a30d94",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/vae_module.py"
+    },
+    {
+      "bytes": 8369,
+      "component": "video_vae",
+      "file": "vae_processor.py",
+      "sha256": "32870580a1802d9163104a4d68170e35a4772106867181e1bd343dff11f87d2e",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/vae_processor.py"
+    },
+    {
+      "bytes": 13490,
+      "component": "video_vae",
+      "file": "vae_vit.py",
+      "sha256": "a372c28441b56ec2dbc6041dbd6ce2766c64c0e61b2c69a16594a97a11da3f58",
+      "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/vae_vit.py"
+    }
+  ],
+  "repository": "MiniMax/MiniMax-H3",
+  "revision": "master",
+  "schema": "comfy-omni.e4.official-component-configs/v1",
+  "source_prefix": "Ref2VA"
+}
