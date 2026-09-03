@@ -157,7 +157,7 @@ def validate_runtime_package(
     """
 
     try:
-        root = fileops.reject_linked_ancestors(Path(package_root)).resolve(strict=True)
+        root = fileops.reject_linked_ancestors(Path(package_root), allow_final_link=True).resolve(strict=True)
     except (fileops.FsopsError, OSError) as exc:
         _fail("runtime package path is missing, linked, or unreadable", "package-binding", cause=str(exc))
     if not root.is_dir():
