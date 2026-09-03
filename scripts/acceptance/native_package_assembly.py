@@ -30,17 +30,17 @@ from comfy_omni.conversion.packaging.receipts import RECEIPT_SCHEMA, parse_compo
 from comfy_omni.conversion.packaging.verification import verify_package_sources
 
 TOTAL_FILE_COUNT = 57
-TOTAL_BYTES = 61_745_392_507
+TOTAL_BYTES = 61_745_392_542
 
 MODEL_INDEX_NAME = "model_index.json"
 
 COMPONENT_CENSUS = {
-    "audio_vae": (13, 605_286_955),
+    "audio_vae": (13, 605_286_975),
     "processor": (7, 11_498_352),
     "text_encoder": (2, 15_683_131_061),
     "tokenizer": (4, 11_492_078),
     "transformer": (14, 40_226_030_420),
-    "video_vae": (17, 5_207_953_641),
+    "video_vae": (17, 5_207_953_656),
 }
 
 SINGLE_PAYLOAD_SHA256 = {
