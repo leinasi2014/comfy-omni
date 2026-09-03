@@ -197,6 +197,7 @@ def _run_preflight(
 ):
     # Deferred import so the RED state fails on the missing module, not on collection.
     from comfy_omni.conversion.oracle.preflight import preflight_candidate
+    from comfy_omni.integrations.vllm_omni.package_contract import validate_runtime_package
 
     return preflight_candidate(
         candidate_id,
@@ -204,6 +205,7 @@ def _run_preflight(
         candidate_path,
         pinned_sha256=pin_sha256,
         pinned_bytes=pin_bytes,
+        runtime_contract_resolver=validate_runtime_package,
     )
 
 
@@ -343,7 +345,7 @@ def test_preflight_refusing_does_not_mutate_candidate_or_package(tmp_path: Path)
 
     candidate_before = _fingerprint(candidate)
     package_files_before = {
-        relative: _fingerprint(path) for relative, path in sorted(p for p in package.rglob("*") if p.is_file())
+        path.relative_to(package): _fingerprint(path) for path in sorted(p for p in package.rglob("*") if p.is_file())
     }
 
     verdict = _run_preflight("candidate-a", package, candidate, sha, size)
@@ -351,6 +353,6 @@ def test_preflight_refusing_does_not_mutate_candidate_or_package(tmp_path: Path)
 
     assert _fingerprint(candidate) == candidate_before
     package_files_after = {
-        relative: _fingerprint(path) for relative, path in sorted(p for p in package.rglob("*") if p.is_file())
+        path.relative_to(package): _fingerprint(path) for path in sorted(p for p in package.rglob("*") if p.is_file())
     }
     assert package_files_after == package_files_before
