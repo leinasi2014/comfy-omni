@@ -496,13 +496,16 @@ def is_link(path: Path) -> bool:
     return bool(attributes & _REPARSE_POINT)
 
 
-def reject_linked_ancestors(path: Path, *, allow_missing_final: bool = False) -> Path:
+def reject_linked_ancestors(path: Path, *, allow_missing_final: bool = False, allow_final_link: bool = False) -> Path:
     """Forbid linked ancestors; return the absolute (unresolved) path.
 
     Walks every component from the filesystem root down to ``path`` and raises
     ``FsopsLinkError`` if any is a link/reparse point.  A missing component
     raises ``FsopsMissingPathError`` unless it is the final one and
-    ``allow_missing_final`` is true (the pre-create validation shape).
+    ``allow_missing_final`` is true (the pre-create validation shape).  A
+    linked final component is allowed only when ``allow_final_link`` is true
+    (the serving layout ``<work_dir>/Ref2VA -> package_root`` view); linked
+    ancestors are still refused in that case.
     Permission/inspection failures always raise ``FsopsIoError`` -- unlike
     ``package_assembler``/``vae_export``, which let the raw ``OSError`` leak.
     The returned path is ``os.path.abspath``-normalized but **not** resolved:
@@ -518,7 +521,7 @@ def reject_linked_ancestors(path: Path, *, allow_missing_final: bool = False) ->
             if not (allow_missing_final and final):
                 raise
             continue
-        if linked:
+        if linked and not (allow_final_link and final):
             error = FsopsLinkError(f"linked path component is forbidden: {component}")
             error.path = component
             raise error
