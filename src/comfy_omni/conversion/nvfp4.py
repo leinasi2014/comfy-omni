@@ -141,7 +141,8 @@ def decode_nvfp4(
         )
     values = torch.nn.functional.embedding(unpacked.to(torch.long), lut).squeeze(-1)
     bs = block_scale.to(torch.float32)
-    total = per_tensor_scale.to(torch.float32).reshape(()) * bs.unsqueeze(-1)
+    scalar = per_tensor_scale.to(torch.float32).reshape(())
+    total = scalar * bs  # [rows, blocks_per_row]
     out = (values.reshape(rows, blocks_per_row, 16) * total.unsqueeze(-1)).reshape(rows, logical_cols)
     if output_dtype is not None:
         out = out.to(output_dtype)
