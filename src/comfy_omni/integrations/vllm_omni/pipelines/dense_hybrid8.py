@@ -1877,6 +1877,9 @@ def discover_hybrid8_dit_form(model_path: str | Path) -> Hybrid8DitForm | None:
     )
 
 
+_SEEN_TAIL_HOLDER: list[str] = []
+
+
 class _ScopedAttribute:
     """Temporarily replace a module attribute and restore it afterwards."""
 
@@ -1967,9 +1970,10 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
             if qdata is None:
                 if os.environ.get("COMFY_OMNI_TE_DEBUG") == "1":
                     logger.info("comfy_quant flush group snapshot: %s", sorted(group))
+                seen = list(_SEEN_TAIL_HOLDER)
                 raise DenseHybridStructureError(
                     f"comfy_quant group {weight_name!r} is missing its weight tensor; "
-                    f"group keys={sorted(group)}"
+                    f"group keys={sorted(group)}; recent_stream={seen}"
                 )
             decoded = decode_weight(
                 qdata,
@@ -1996,7 +2000,10 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
                 return produced
 
             _debug_seen = 0
+            _seen_tail: list[str] = []
             for name, tensor in weights:
+                _SEEN_TAIL_HOLDER.append(name)
+                del _SEEN_TAIL_HOLDER[:-8]
                 if os.environ.get("COMFY_OMNI_TE_DEBUG") == "1" and _debug_seen < 12:
                     logger.info("comfy TE stream[%d] -> %s", _debug_seen, name)
                     _debug_seen += 1
