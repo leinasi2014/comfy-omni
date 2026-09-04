@@ -121,6 +121,9 @@ def decode_nvfp4(
 
     # On-disk qdata may be stored signed (I8) with two-complement nibbles;
     # force the unsigned bit pattern before splitting nibbles.
+    import os as _os
+    if _os.environ.get("COMFY_OMNI_TE_DEBUG") == "1":
+        print(f"NVFP4-DECODE qdata dtype={qdata.dtype} shape={tuple(qdata.shape)} ", flush=True)
     qdata = qdata.to(torch.uint8)
     hi = qdata >> 4
     lo = qdata & 0x0F
