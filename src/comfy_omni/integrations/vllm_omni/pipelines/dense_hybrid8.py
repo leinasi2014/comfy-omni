@@ -1816,13 +1816,27 @@ def discover_hybrid8_dit_form(model_path: str | Path) -> Hybrid8DitForm | None:
         torch.float32: "F32",
         torch.uint8: "U8",
     }
+    _STRING_TO_CENSUS = {
+        "BFLOAT16": "BF16",
+        "FLOAT16": "F16",
+        "FLOAT32": "F32",
+        "UINT8": "U8",
+    }
+
+    def _census_dtype(raw: Any) -> str | None:
+        if raw in _TORCH_TO_CENSUS:
+            return _TORCH_TO_CENSUS[raw]
+        token = str(raw).rsplit(".", 1)[-1].upper()
+        return _STRING_TO_CENSUS.get(token)
+
     for shard in sorted(set(weight_map.values())):
         with safe_open(str(transformer_dir / shard), framework="pt", device="cpu") as handle:
             for key in handle.keys():
-                ctype = _TORCH_TO_CENSUS.get(handle.get_slice(key).get_dtype())
+                raw_dtype = handle.get_slice(key).get_dtype()
+                ctype = _census_dtype(raw_dtype)
                 if ctype is None:
                     raise DenseHybridStructureError(
-                        f"dense hybrid8 tensor {key!r} carries unsupported dtype {handle.get_slice(key).get_dtype()}"
+                        f"dense hybrid8 tensor {key!r} carries unsupported dtype {raw_dtype}"
                     )
                 census[key] = (ctype, tuple(int(v) for v in handle.get_slice(key).get_shape()))
     missing = sorted(set(inventory) - set(census))
