@@ -131,6 +131,11 @@ def decode_nvfp4(
     lut = torch.tensor(E2M1_LUT, dtype=torch.float32).reshape(1, -1)
     if qdata.device.type != "cpu":
         lut = lut.to(qdata.device)
+    if bool(qdata.numel()) and (int(lo.min()) < 0 or int(hi.max()) > 15):
+        raise ValueError(
+            f"nvfp4 qdata nibble range [{int(lo.min())}, {int(hi.max())}] is invalid for "
+            f"dtype={qdata.dtype} shape={tuple(qdata.shape)}"
+        )
     values = torch.nn.functional.embedding(unpacked.to(torch.long), lut).squeeze(-1)
     bs = block_scale.to(torch.float32)
     total = per_tensor_scale.to(torch.float32).reshape(()) * bs.unsqueeze(-1)

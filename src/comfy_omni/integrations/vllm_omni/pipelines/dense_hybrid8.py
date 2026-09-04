@@ -1971,13 +1971,20 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
                     f"comfy_quant group {base!r} is missing its weight tensor; "
                     f"group keys={sorted(group)}"
                 )
-            decoded = decode_weight(
-                qdata,
-                conf,
-                weight_scale=group.get("scale"),
-                weight_scale_2=group.get("scale2"),
-                output_dtype=torch.bfloat16,
-            )
+            try:
+                decoded = decode_weight(
+                    qdata,
+                    conf,
+                    weight_scale=group.get("scale"),
+                    weight_scale_2=group.get("scale2"),
+                    output_dtype=torch.bfloat16,
+                )
+            except Exception as exc:
+                raise DenseHybridStructureError(
+                    f"comfy_quant decode failed for {base!r}: {exc} "
+                    f"(qdata dtype={getattr(qdata, 'dtype', None)}, "
+                    f"shape={tuple(getattr(qdata, 'shape', ()))})"
+                ) from exc
             return (_normalize_te_name(f"{base}.weight"), decoded)
 
         def stream() -> object:
