@@ -169,6 +169,15 @@ def _family_shapes(
     return shapes
 
 
+def family_shapes(
+    inventory: Mapping[str, tuple[str, tuple[int, ...]]],
+    prefix: str,
+    suffixes: tuple[str, ...],
+) -> dict[str, tuple[int, ...]]:
+    """Public alias of the strict block-family shape check."""
+    return _family_shapes(inventory, prefix, suffixes)
+
+
 def block_indices(names: Sequence[str] | Mapping[str, Any], prefix: str) -> tuple[int, ...]:
     """Distinct block indices under ``prefix``, asserting a contiguous run from 0."""
     indices: set[int] = set()
@@ -300,4 +309,5 @@ __all__ = [
     "has_hybrid8_signature",
     "validate_hybrid8_census",
     "block_indices",
+    "family_shapes",
 ]
