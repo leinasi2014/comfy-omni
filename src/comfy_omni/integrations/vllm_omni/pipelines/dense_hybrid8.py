@@ -41,6 +41,9 @@ from vllm.model_executor.layers.linear import (
     QKVParallelLinear,
     RowParallelLinear,
 )
+from vllm_omni.diffusion.models.minimax_h3.encoder import (
+    MiniMaxH3Qwen3VLEncoder as OfficialMiniMaxH3Qwen3VLEncoder,
+)
 from vllm_omni.diffusion.models.minimax_h3.minimax_h3_transformer import (
     MiniMaxH3DiTModel as OfficialMiniMaxH3DiTModel,
 )
@@ -1916,4 +1919,109 @@ def construct_dense_pipeline(od_config: Any, prefix: str = "") -> Any:
     import vllm_omni.diffusion.models.minimax_h3.pipeline_minimax_h3 as official_pipeline_module
 
     with _ScopedAttribute(official_pipeline_module, "MiniMaxH3DiTModel", DenseHybridDiT):
-        return OfficialMiniMaxH3Pipeline(od_config=od_config, prefix=prefix)
+        with _ScopedAttribute(official_pipeline_module, "MiniMaxH3Qwen3VLEncoder", CompatQwen3VLEncoder):
+            return OfficialMiniMaxH3Pipeline(od_config=od_config, prefix=prefix)
+
+
+# ---------------------------------------------------------------------------
+# Text-encoder comfy_quant adapter (E4 NVFP4 strict checkpoint)
+# ---------------------------------------------------------------------------
+
+_TE_MARKER_SUFFIX = ".comfy_quant"
+
+
+def _normalize_te_name(name: str) -> str:
+    """Map HF naming in the Heretic checkpoint to the official loader naming.
+
+    ``model.layers.N.*`` / ``model.embed_tokens.*`` / ``model.norm.*`` become
+    ``model.language_model.*`` (the official ``_map_weight_name`` prefix);
+    ``model.visual.*`` stays untouched (official maps it to ``vision.*``).
+    """
+    if name.startswith("model.visual."):
+        return name
+    if name.startswith("model."):
+        return "model.language_model." + name[len("model.") :]
+    return name
+
+class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
+    """Official Qwen3-VL encoder that decodes comfy_quant NVFP4/int8 weights.
+
+    The packaged E4 text encoder is the raw Heretic comfy_quant checkpoint
+    (``model.layers.*`` naming, U8 NVFP4 + F8 block scales + ``comfy_quant``
+    markers). This subclass streams the weight stream, decodes each quantized
+    layer to dense BF16 with the reference NVFP4 E2M1 math (see
+    ``comfy_omni/conversion/nvfp4.py`` for provenance), renames ``model.*`` to
+    the official ``model.language_model.*`` spelling, and hands the dense
+    stream to the official loader -- no package mutation, no offline
+    conversion, fail-closed on any malformed/deficient quant group.
+    """
+
+    def load_weights(self, weights):
+        from comfy_omni.conversion.nvfp4 import decode_weight, parse_comfy_marker
+
+        def flush(group: dict[str, Any], weight_name: str) -> list[tuple[str, Any]] | None:
+            conf = group.get("marker")
+            if conf is None:
+                return None
+            qdata = group.get("weight")
+            if qdata is None:
+                raise DenseHybridStructureError(
+                    f"comfy_quant group {weight_name!r} is missing its weight tensor"
+                )
+            decoded = decode_weight(
+                qdata,
+                conf,
+                weight_scale=group.get("scale"),
+                weight_scale_2=group.get("scale2"),
+                output_dtype=torch.bfloat16,
+            )
+            return [(_normalize_te_name(weight_name), decoded)]
+
+        def stream() -> object:
+            group: dict[str, Any] = {}
+            group_name: str | None = None
+
+            def drain() -> list[tuple[str, Any]]:
+                nonlocal group, group_name
+                if group_name is None:
+                    return []
+                produced = flush(group, f"{group_name}.weight")
+                group = {}
+                group_name = None
+                if produced is None:
+                    raise DenseHybridStructureError("comfy_quant group emitted no weight")
+                return produced
+
+            for name, tensor in weights:
+                if name.endswith(_TE_MARKER_SUFFIX):
+                    for item in drain():
+                        yield item
+                    base = name[: -len(_TE_MARKER_SUFFIX)]
+                    try:
+                        conf = parse_comfy_marker(tensor.cpu().numpy().tobytes())
+                    except ValueError as exc:
+                        raise DenseHybridStructureError(
+                            f"comfy_quant marker {name!r} is malformed: {exc}"
+                        ) from exc
+                    group = {"marker": conf}
+                    group_name = base
+                    continue
+                if group_name is not None and name.startswith(f"{group_name}."):
+                    if name.endswith(".weight"):
+                        group["weight"] = tensor
+                    elif name.endswith(".weight_scale"):
+                        group["scale"] = tensor
+                    elif name.endswith(".weight_scale_2"):
+                        group["scale2"] = tensor
+                        for item in drain():
+                            yield item
+                    continue
+                for item in drain():
+                    yield item
+                if not name.endswith((".comfy_quant", ".weight_scale", ".weight_scale_2")):
+                    yield (_normalize_te_name(name), tensor)
+            for item in drain():
+                yield item
+
+        return super().load_weights(stream())
+
