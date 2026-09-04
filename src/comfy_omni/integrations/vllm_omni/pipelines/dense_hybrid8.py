@@ -1877,7 +1877,6 @@ def discover_hybrid8_dit_form(model_path: str | Path) -> Hybrid8DitForm | None:
     )
 
 
-_SEEN_TAIL_HOLDER: list[str] = []
 
 
 class _ScopedAttribute:
@@ -1962,18 +1961,15 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
     def load_weights(self, weights):
         from comfy_omni.conversion.nvfp4 import decode_weight, parse_comfy_marker
 
-        def flush(group: dict[str, Any], weight_name: str) -> list[tuple[str, Any]] | None:
+        def decode_group(base: str, group: dict[str, Any]) -> tuple[str, Any]:
             conf = group.get("marker")
             if conf is None:
-                return None
+                raise DenseHybridStructureError(f"comfy_quant group {base!r} lost its marker")
             qdata = group.get("weight")
             if qdata is None:
-                if os.environ.get("COMFY_OMNI_TE_DEBUG") == "1":
-                    logger.info("comfy_quant flush group snapshot: %s", sorted(group))
-                seen = list(_SEEN_TAIL_HOLDER)
                 raise DenseHybridStructureError(
-                    f"comfy_quant group {weight_name!r} is missing its weight tensor; "
-                    f"group keys={sorted(group)}; recent_stream={seen}"
+                    f"comfy_quant group {base!r} is missing its weight tensor; "
+                    f"group keys={sorted(group)}"
                 )
             decoded = decode_weight(
                 qdata,
@@ -1982,60 +1978,60 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
                 weight_scale_2=group.get("scale2"),
                 output_dtype=torch.bfloat16,
             )
-            return [(_normalize_te_name(weight_name), decoded)]
+            return (_normalize_te_name(f"{base}.weight"), decoded)
 
         def stream() -> object:
-            group: dict[str, Any] = {}
-            group_name: str | None = None
+            groups: dict[str, dict[str, Any]] = {}
 
-            def drain() -> list[tuple[str, Any]]:
-                nonlocal group, group_name
-                if group_name is None:
-                    return []
-                produced = flush(group, f"{group_name}.weight")
-                group = {}
-                group_name = None
-                if produced is None:
-                    raise DenseHybridStructureError("comfy_quant group emitted no weight")
-                return produced
-
-            _debug_seen = 0
-            _seen_tail: list[str] = []
             for name, tensor in weights:
-                _SEEN_TAIL_HOLDER.append(name)
-                del _SEEN_TAIL_HOLDER[:-8]
-                if os.environ.get("COMFY_OMNI_TE_DEBUG") == "1" and _debug_seen < 12:
-                    logger.info("comfy TE stream[%d] -> %s", _debug_seen, name)
-                    _debug_seen += 1
                 if name.endswith(_TE_MARKER_SUFFIX):
-                    for item in drain():
-                        yield item
                     base = name[: -len(_TE_MARKER_SUFFIX)]
                     try:
                         conf = parse_comfy_marker(tensor.cpu().numpy().tobytes())
                     except ValueError as exc:
-                        raise DenseHybridStructureError(
-                            f"comfy_quant marker {name!r} is malformed: {exc}"
-                        ) from exc
-                    group = {"marker": conf}
-                    group_name = base
+                        raise DenseHybridStructureError(f"comfy_quant marker {name!r} is malformed: {exc}") from exc
+                    group = groups.setdefault(base, {})
+                    group["marker"] = conf
+                    if "weight" in group:
+                        yield decode_group(base, group)
+                        del groups[base]
                     continue
-                if group_name is not None and name.startswith(f"{group_name}."):
-                    if name.endswith(".weight"):
+                if name.endswith(".weight_scale_2"):
+                    base = name[: -len(".weight_scale_2")]
+                    groups.setdefault(base, {})["scale2"] = tensor
+                    continue
+                if name.endswith(".weight_scale"):
+                    base = name[: -len(".weight_scale")]
+                    groups.setdefault(base, {})["scale"] = tensor
+                    continue
+                if name.endswith(".weight"):
+                    base = name[: -len(".weight")]
+                    group = groups.get(base)
+                    if group is not None:
                         group["weight"] = tensor
-                    elif name.endswith(".weight_scale"):
-                        group["scale"] = tensor
-                    elif name.endswith(".weight_scale_2"):
-                        group["scale2"] = tensor
-                        for item in drain():
-                            yield item
-                    continue
-                for item in drain():
-                    yield item
-                if not name.endswith((".comfy_quant", ".weight_scale", ".weight_scale_2")):
+                        if "marker" in group:
+                            yield decode_group(base, group)
+                            del groups[base]
+                        elif "scale" in group or "scale2" in group:
+                            # weight arrived between scales and marker: hold it.
+                            pass
+                        else:
+                            # marker may still arrive; keep the weight buffered.
+                            pass
+                        continue
                     yield (_normalize_te_name(name), tensor)
-            for item in drain():
-                yield item
+                    continue
+                yield (_normalize_te_name(name), tensor)
+            for base, group in sorted(groups.items()):
+                if group.get("marker") is not None:
+                    yield decode_group(base, group)
+                elif "scale" in group or "scale2" in group:
+                    raise DenseHybridStructureError(
+                        f"comfy_quant group {base!r} carried scales but no weight/marker"
+                    )
+                elif group.get("weight") is not None:
+                    yield (_normalize_te_name(f"{base}.weight"), group["weight"])
 
         return super().load_weights(stream())
+
 
