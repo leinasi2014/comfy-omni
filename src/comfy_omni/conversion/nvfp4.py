@@ -119,6 +119,9 @@ def decode_nvfp4(
     if per_tensor_scale.numel() != 1:
         raise ValueError(f"nvfp4 per-tensor scale must be a scalar, got {tuple(per_tensor_scale.shape)}")
 
+    # On-disk qdata may be stored signed (I8) with two-complement nibbles;
+    # force the unsigned bit pattern before splitting nibbles.
+    qdata = qdata.to(torch.uint8)
     hi = qdata >> 4
     lo = qdata & 0x0F
     if hi_first:
