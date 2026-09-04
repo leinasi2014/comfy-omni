@@ -131,7 +131,7 @@ def decode_nvfp4(
         unpacked = torch.stack([hi, lo], dim=-1).reshape(rows, logical_cols)
     else:
         unpacked = torch.stack([lo, hi], dim=-1).reshape(rows, logical_cols)
-    lut = torch.tensor(E2M1_LUT, dtype=torch.float32).reshape(1, -1)
+    lut = torch.tensor(E2M1_LUT, dtype=torch.float32).reshape(-1, 1)
     if qdata.device.type != "cpu":
         lut = lut.to(qdata.device)
     if bool(qdata.numel()) and (int(lo.min()) < 0 or int(hi.max()) > 15):
