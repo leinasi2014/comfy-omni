@@ -1939,6 +1939,8 @@ def _normalize_te_name(name: str) -> str:
     ``model.language_model.*`` (the official ``_map_weight_name`` prefix);
     ``model.visual.*`` stays untouched (official maps it to ``vision.*``).
     """
+    if name.startswith("visual."):
+        return "model.visual." + name[len("visual.") :]
     if name.startswith("model.visual."):
         return name
     if name.startswith("model."):
