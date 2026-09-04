@@ -44,6 +44,9 @@ from vllm.model_executor.layers.linear import (
 from vllm_omni.diffusion.models.minimax_h3.minimax_h3_transformer import (
     MiniMaxH3DiTModel as OfficialMiniMaxH3DiTModel,
 )
+from vllm_omni.diffusion.models.minimax_h3.pipeline_minimax_h3 import (
+    MiniMaxH3Pipeline as OfficialMiniMaxH3Pipeline,
+)
 
 from comfy_omni.runtime.h3.hybrid8.contracts import (
     Hybrid8DitForm,
@@ -68,7 +71,7 @@ _MODEL_ROOT_FIELD_CANDIDATES: tuple[str, ...] = (
 #: Directories probed for the transformer checkpoint when only the pipeline
 #: root is known: the conventional ``transformer/`` subdirectory first, then
 #: the root itself (single-file deployments / dense-export layout).
-_TRANSFORMER_DIR_CANDIDATES: tuple[str, ...] = ("transformer", ".")
+_TRANSFORMER_DIR_CANDIDATES: tuple[str, ...] = ("Ref2VA/transformer", "transformer", ".")
 _HYBRID8_T_TABLE_NAME = "adaln_t_table"
 _HYBRID8_QKV_GROUPED_LAYOUT = "grouped-for-official-loader"
 
@@ -1852,3 +1855,48 @@ def discover_hybrid8_dit_form(model_path: str | Path) -> Hybrid8DitForm | None:
         qkv_layout=str(qkv.get("target_layout")),
         transformer_dir=str(transformer_dir),
     )
+
+
+class _ScopedAttribute:
+    """Temporarily replace a module attribute and restore it afterwards."""
+
+    def __init__(self, module: Any, name: str, value: Any) -> None:
+        self.module = module
+        self.name = name
+        self.value = value
+        self.previous: Any = None
+        self.applied = False
+
+    def apply(self) -> None:
+        self.previous = getattr(self.module, self.name, None)
+        setattr(self.module, self.name, self.value)
+        self.applied = True
+
+    def restore(self) -> None:
+        if not self.applied:
+            return
+        setattr(self.module, self.name, self.previous)
+        self.applied = False
+
+    def __enter__(self) -> _ScopedAttribute:
+        self.apply()
+        return self
+
+    def __exit__(self, *exc_info: Any) -> None:
+        self.restore()
+
+
+def construct_dense_pipeline(od_config: Any, prefix: str = "") -> Any:
+    """Construct the official H3 pipeline with the DiT class scoped to DenseHybridDiT.
+
+    The official pipeline builds ``MiniMaxH3DiTModel`` through the name it
+    imported from the transformer module; swapping that module attribute for
+    the construction duration makes the official constructor instantiate the
+    hybrid8 tree in place (no wasted double build). Returns the constructed
+    official pipeline instance; the caller adopts its state when the package
+    served a hybrid8 form.
+    """
+    import vllm_omni.diffusion.models.minimax_h3.pipeline_minimax_h3 as official_pipeline_module
+
+    with _ScopedAttribute(official_pipeline_module, "MiniMaxH3DiTModel", DenseHybridDiT):
+        return OfficialMiniMaxH3Pipeline(od_config=od_config, prefix=prefix)
