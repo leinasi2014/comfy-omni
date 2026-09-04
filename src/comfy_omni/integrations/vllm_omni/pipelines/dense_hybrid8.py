@@ -1821,6 +1821,10 @@ def discover_hybrid8_dit_form(model_path: str | Path) -> Hybrid8DitForm | None:
         "FLOAT16": "F16",
         "FLOAT32": "F32",
         "UINT8": "U8",
+        "BF16": "BF16",
+        "F16": "F16",
+        "F32": "F32",
+        "U8": "U8",
     }
 
     def _census_dtype(raw: Any) -> str | None:
