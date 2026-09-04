@@ -227,7 +227,6 @@ _FINAL_LAYER_SUFFIXES = (
 #: pipeline root is known: the conventional ``transformer/`` subdirectory of
 #: a deployed package first, then the root itself (single-file deployments
 #: and the dense-export directory layout).
-_TRANSFORMER_DIR_CANDIDATES = ("transformer", ".")
 #: The only QKV checkpoint row layout the hybrid8 route serves: the dense-bf16
 #: export contract's grouped rows (``[Q0;K0;V0;Q1;K1;V1;...]``, one
 #: ``(heads_per_group+2)*head_dim`` row block per query group), declared by
