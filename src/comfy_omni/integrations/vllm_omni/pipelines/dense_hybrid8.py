@@ -1965,8 +1965,11 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
                 return None
             qdata = group.get("weight")
             if qdata is None:
+                if os.environ.get("COMFY_OMNI_TE_DEBUG") == "1":
+                    logger.info("comfy_quant flush group snapshot: %s", sorted(group))
                 raise DenseHybridStructureError(
-                    f"comfy_quant group {weight_name!r} is missing its weight tensor"
+                    f"comfy_quant group {weight_name!r} is missing its weight tensor; "
+                    f"group keys={sorted(group)}"
                 )
             decoded = decode_weight(
                 qdata,
@@ -1992,7 +1995,11 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
                     raise DenseHybridStructureError("comfy_quant group emitted no weight")
                 return produced
 
+            _debug_seen = 0
             for name, tensor in weights:
+                if os.environ.get("COMFY_OMNI_TE_DEBUG") == "1" and _debug_seen < 12:
+                    logger.info("comfy TE stream[%d] -> %s", _debug_seen, name)
+                    _debug_seen += 1
                 if name.endswith(_TE_MARKER_SUFFIX):
                     for item in drain():
                         yield item
