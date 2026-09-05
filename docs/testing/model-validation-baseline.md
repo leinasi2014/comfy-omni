@@ -22,7 +22,13 @@
 完整 LoRA 生命周期、工具及节点工作流放到后续，不阻塞首期。下面的 LoRA 资产与场景保留为后续
 测试数据，不要求为了首期验收读取它们或运行 LoRA 场景。
 
-本次文档修订不代表当前依赖导出目录的代码已经支持原始组件直载；这些耦合属于待修正的实现缺口。
+当前 [H3 来源路由](../../src/comfy_omni/integrations/vllm_omni/pipelines/runtime_pipeline.py) 已通过
+`additional_config.comfy_omni_h3` 的 `active` 和 `sources` 选择固定 A、B 原始 ConvRot DiT，绕过
+导出包验证入口；共享组件仍引用已有的宿主可读目录。[驻留协调器](../../src/comfy_omni/integrations/vllm_omni/residency_control.py)
+和 [运行时 API](../../src/comfy_omni/api/routes/h3_runtime.py) 接通已有 worker 内的 DiT 装卸与切换。
+接口及精度范围见 [H3 原文件运行说明](../guides/h3-original-files.md)。小型样本宿主回归证明这些
+代码入口，不替代固定大模型完整生成、A→B→A 和资源回收的验收，也不证明表中所有原始 TE/VAE
+格式均已支持直载。
 
 这是一份验收合同，不是支持声明。模型存在或摘要正确，只能证明资产身份；只有对应行为的代码、
 自动化检查和真实宿主证据同时通过，才能提升能力状态。

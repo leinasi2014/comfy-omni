@@ -28,16 +28,28 @@ ComfyOmni 是 vLLM-Omni 插件。首期以 H3 为标准：直接引用已经存�
 | 应用入口 | 模型/组件选择、加载、卸载、切换、状态查询 | `application`、现有 API/plugin |
 
 保留单一发行包、轻量插件注册、组件目录与已经验证的 legacy curve-cache 兼容路径。
-复用原文件读取、映射数学、534 槽位/形状/类型校验，拆掉通用运行时必须依赖磁盘导出包的耦合。
+当前 [H3 来源路由](../src/comfy_omni/integrations/vllm_omni/pipelines/runtime_pipeline.py) 从
+`additional_config.comfy_omni_h3` 的 `active` 和 `sources` 选择已登记的原始 ConvRot DiT，
+直接建立来源 binding，不经过导出包验证入口；共享组件继续引用已有的宿主可读目录。
+固定 A、B 的原文件迭代器分别位于 `runtime/h3/raw_beta4.py` 和 `runtime/h3/raw_standard.py`，
+[H3 pipeline](../src/comfy_omni/integrations/vllm_omni/pipelines/beta4_pipeline.py) 将其接入实际宿主
+权重加载器，并校验逻辑槽位、形状和执行 dtype。
 
 原始 INT8/ConvRot 字节不能直接冒充 BF16 张量。格式加载器负责必要表示适配和峰值预算，
-离线导出器的文件写出部分不能成为运行前置。当前 beta4 单次 DiT forward 已有证据，
-但原始量化 H3 全链直接加载和生成仍需实现及验收。
+离线导出器的文件写出部分不能成为运行前置。原文件加载和驻留控制已有小型样本的真实宿主回归；
+这些证据不代表固定大模型的完整生成与切换已通过，也不代表任意 ComfyUI 格式均可直接加载。
+运行配置和公开 API 见 [H3 原文件运行说明](guides/h3-original-files.md)。
 
 既有导出包及工具源码暂按实际兼容需要保留；错误方向的方案、操作教程和生成架构图直接删除。
 不再以“历史路线”保存另一套开发步骤。必要归属留在 [来源记录](migration/source-attribution.md)。
 
 ## 3. 加载、卸载、复用、切换
+
+现有 [驻留协调器](../src/comfy_omni/integrations/vllm_omni/residency_control.py) 通过宿主暂停新请求并
+排空在途请求，再调用已有 worker 的装卸和切换接口；各 rank 的状态由独立 predicate RPC 核对。
+[公开运行时路由](../src/comfy_omni/api/routes/h3_runtime.py) 提供 status、switch、unload、load 和
+resume。当前装卸对象是 DiT，TE、VAE、tokenizer 等共享组件保留；这不是全部组件任意装卸的声明。
+以下条目仍是首期验收合同，代码接通不替代完整模型与资源回收的实际验证。
 
 1. 配置现有组件路径。首次登记确认强身份与配置，记录来源；后续加载复用记录并检查文件是否变化。
 2. 按所选模型和组件计算 RAM/VRAM 预算，确认格式与几何兼容，再进入运行时变更。
