@@ -104,7 +104,7 @@ RUNTIME_COMPONENT_FILES = {
     "video_vae": {
         "attention.py": (5785, "c9db8465c57f0bfb40c0194227be6e34b2c1ff7c5b5d63abca9964eed6283767"),
         "base_module.py": (9520, "0e7ddf5086179a306298693ac461ffcbc27ccb28dbc786b1a05060de7a3357c0"),
-        "config.json": (1807, "3edd2cdd1ebc823c868be55ef917e1b3b8a398fde4d3150dae44a3bf05d9f627"),
+        "config.json": (2906, "5d1163e8fb4030f3c927714611335840a6e500071cdf5d75ea9c13fccf9f5abc"),
         "conv.py": (4487, "b3adee35f27e5d372543242aa86ce5e0138f13b794b6c81f919001e3e2346723"),
         "flash.py": (5763, "c1918463d303a16f278a670bb4f33d3f8d6f7653b0d473313ff5835699b86d04"),
         "func.py": (5840, "0612c26a65f095699cc7acd51937cd153584fa5a0476956e46a4679aa575c22d"),

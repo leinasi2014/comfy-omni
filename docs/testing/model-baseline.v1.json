@@ -88,13 +88,13 @@
       "revision": "3f57e8291d2ef846f9a074b1b76d2767db434abe",
       "filename": "minimax_h3_video_vae_fp16.safetensors",
       "source_url": "https://huggingface.co/Comfy-Org/MiniMax-H3/blob/3f57e8291d2ef846f9a074b1b76d2767db434abe/vae/minimax_h3_video_vae_fp16.safetensors",
-      "bytes": 5207806104,
-      "sha256": "5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148",
+      "bytes": 5207808496,
+      "sha256": "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
       "license": "minimax-h3-community-license-agreement",
       "risk_flags": [],
-      "format_conformance": {
-        "status": "nonconformant",
-        "reason_code": "safetensors-extra-latent-statistics-keys",
+      "runtime_conformance": {
+        "status": "requires-derived-payload",
+        "reason_code": "vae-extra-latent-statistics-keys",
         "observed_total_keys": 562,
         "parameter_key_count": 560,
         "extra_keys": [

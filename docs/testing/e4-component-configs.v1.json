@@ -204,6 +204,19 @@
       "source": "MiniMax/MiniMax-H3@master Ref2VA/video_vae/vae_vit.py"
     }
   ],
+  "runtime_derivations": [
+    {
+      "component": "video_vae",
+      "file": "config.json",
+      "source_bytes": 1807,
+      "source_sha256": "3edd2cdd1ebc823c868be55ef917e1b3b8a398fde4d3150dae44a3bf05d9f627",
+      "bytes": 2906,
+      "sha256": "5d1163e8fb4030f3c927714611335840a6e500071cdf5d75ea9c13fccf9f5abc",
+      "derivation": "Bind latent_channels and latents_mean/latents_std to the pinned source video VAE statistics; retain the source configuration identity separately.",
+      "source_payload_sha256": "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522",
+      "runtime_payload_sha256": "5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148"
+    }
+  ],
   "repository": "MiniMax/MiniMax-H3",
   "revision": "master",
   "schema": "comfy-omni.e4.official-component-configs/v1",

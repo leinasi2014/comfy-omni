@@ -24,7 +24,7 @@
 | `primary-dit` | 主 DiT | `10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors` | 20,967,637,320 | `54d56b15c65923b54c9ca16b494dae641bfe9455cfcb1c19c49b1008e270bbc1` |
 | `text-encoder` | 文本编码器 | `qwen3vl_32b_heretic_minimax_h3_nvfp4.safetensors` | 15,683,129,659 | `47babbb3e4b7e43c097351ca39cfb7f326d014ae53a584f8559dc8121abca94c` |
 | `audio-vae` | 音频 VAE | `model.safetensors` | 605,429,308 | `37dddc2f3e6d5d5139d823d5ea283bbf304dadcb885b1ccda818aa13dade5ea2` |
-| `video-vae` | 视频 VAE | `minimax_h3_video_vae_fp16.safetensors` | 5,207,806,104 | `5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148` |
+| `video-vae` | 视频 VAE 原始来源 | `minimax_h3_video_vae_fp16.safetensors` | 5,207,808,496 | `7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522` |
 | `spatial-physics-lora` | LoRA 候选 | `wushu_spatial_physics_clean_3000_pruned.safetensors` | 155,109,672 | `7d14f3701560068e7004159c8b2a7278bd2dbfc9e5e3b60d0bc9aef6c049919d` |
 | `realism-people-lora` | LoRA 候选 | `h3-realism-people-t2v-i2v-r2v.safetensors` | 131,229,656 | `acc529601d2da117fb81179e76c56e488a3beab1171659d305f04fa3655b787e` |
 | `hot-swap-dit` | 完整 DiT 热切换候选 | `minimax_h3_ref2va_pruned_zs05_int8_convrot.safetensors` | 20,970,379,680 | `71b8085ac4221ee036708c230a007d617dccca1b0028b95bb4ee106cb2a385c5` |
@@ -54,7 +54,20 @@ ComfyOmni 的正式命令从固定源文件生成独立副本、发布 receipt �
 SHA256，以及 JSON 中的 header/索引/尾部摘要。strict reader 在结构检查阶段即拒绝，因此这次运行
 没有产生 text-encoder 组件识别、NVFP4 识别或运行时可加载的结论。
 
-### 2.2 官方 Ref2VA tokenizer/processor 组件目录
+### 2.2 视频 VAE 来源与运行时派生物
+
+表中视频 VAE 摘要始终指向原始下载文件。其 562 个张量包含 560 个模型参数和
+`latents_mean`、`latents_std` 两个统计张量；这是宿主参数布局差异，不是 safetensors 格式损坏。
+运行时选用单独的 560 参数派生物：5,207,806,104 字节，SHA256 为
+`5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148`。
+统计值由对应配置承载：2,906 字节，SHA256 为
+`5d1163e8fb4030f3c927714611335840a6e500071cdf5d75ea9c13fccf9f5abc`。
+`e4-component-configs.v1.json` 的 `files` 保留上游文件身份，`runtime_derivations`
+单独绑定这份派生配置及其原始来源；组包使用派生配置与原有动态代码组成的精确名单。
+`staging_policy` 记录原始与派生身份；组包验收只接受派生 payload 及其精确配套文件，
+不能把派生摘要写回上游源文件身份，也不能忽略额外参数后声称加载成功。
+
+### 2.3 官方 Ref2VA tokenizer/processor 组件目录
 
 `tokenizer-config` 与 `processor-config` 来自官方 `MiniMaxAI/MiniMax-H3` 仓库 revision
 `42ed227ee7df40d41602854ae760620d6eb651fe`（该 revision 与旧 `h3-forge` 对官方模板代码
@@ -84,7 +97,7 @@ E3 组件树中，`transformer` 使用本仓库自己的 Ref2VA 全量转换输�
 `text_encoder` 使用 digest-pinned 规范化 strict 副本，两个 VAE 使用已验证 payload；不引入官方
 transformer/text_encoder/VAE 权重。
 
-### 2.3 组件运行时配置与代码（E4 包 v3）
+### 2.4 组件运行时配置与代码（E4 包 v3）
 
 真实宿主加载要求组件目录携带非权重文件：`text_encoder/config.json`（Qwen3VLConfig）、两个 VAE
 的 `config.json` 与 `auto_map` 引用的 Python 代码文件。这些文件取自魔塔社区官方镜像
