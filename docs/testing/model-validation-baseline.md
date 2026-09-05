@@ -94,8 +94,9 @@ SHA256。两个目录在 `tokenizer.json`、`tokenizer_config.json`、`merges.tx
 内容一致，属官方布局事实，不是下载缺陷。
 
 E3 组件树中，`transformer` 使用本仓库自己的 Ref2VA 全量转换输出（绑定 `hot-swap-dit` 来源），
-`text_encoder` 使用 digest-pinned 规范化 strict 副本，两个 VAE 使用已验证 payload；不引入官方
-transformer/text_encoder/VAE 权重。
+`text_encoder` 使用 digest-pinned 规范化 strict 副本。视频 VAE 使用上述 Comfy 源文件的派生
+payload，音频 VAE 使用表中摘要固定的 ModelScope 官方 `Ref2VA/audio_vae/model.safetensors`。
+不引入官方 transformer 或 text_encoder 权重。
 
 ### 2.4 组件运行时配置与代码（E4 包 v3）
 
