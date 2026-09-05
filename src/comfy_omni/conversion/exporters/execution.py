@@ -464,7 +464,6 @@ def execute_native_export(
                     kind="contract-snapshot",
                 )
             )
-        sources.verify_unchanged()
         manifest = {
             "component": plan.component,
             "files": [item.to_dict() for item in sorted(staged, key=lambda value: value.name)],
@@ -488,6 +487,7 @@ def execute_native_export(
             manifest["source_contract"] = snapshot_record
         if before_publication is not None:
             before_publication(stage.path)
+        sources.verify_unchanged()
         return publish_native_export(stage, tuple(staged), manifest)
 
 
