@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import NoReturn
 
 from comfy_omni.artifacts import fileops
+from comfy_omni.artifacts.immutable_links import reuse_file_pinned_exclusive
 from comfy_omni.contracts.models import ContractError
 from comfy_omni.conversion.packaging.models import NativePackagePlan, PackageMaterialization
 from comfy_omni.conversion.packaging.verification import verify_package_sources
@@ -115,8 +116,24 @@ def _unchanged_directory(path: Path, identity: tuple[int, int], *, label: str) -
         _fail(f"{label} directory identity changed", "staging")
 
 
-def materialize_package(plan: NativePackagePlan, output_dir: Path | str) -> PackageMaterialization:
-    """Copy all planned files to private staging without publishing output."""
+def materialize_package(
+    plan: NativePackagePlan,
+    output_dir: Path | str,
+    *,
+    reuse_immutable: bool = False,
+    max_copy_bytes: int | None = None,
+) -> PackageMaterialization:
+    """Materialize private staging, optionally sharing immutable source inodes.
+
+    Default copying and its serialized result remain unchanged. Reuse requires
+    read-only source permissions and metadata write access to a shared mount.
+    Cross-mount/filesystem fallback copies must fit an optional explicit budget.
+    """
+
+    if type(reuse_immutable) is not bool or (
+        max_copy_bytes is not None and (type(max_copy_bytes) is not int or max_copy_bytes < 0)
+    ):
+        _fail("invalid package storage policy", "storage-policy")
 
     output, parent, parent_identity = _prepare_output(plan, Path(output_dir))
     source_verification = verify_package_sources(plan)
@@ -132,12 +149,22 @@ def materialize_package(plan: NativePackagePlan, output_dir: Path | str) -> Pack
     component_roots = {item.component: Path(item.source_dir) for item in plan.components}
     census: list[dict[str, object]] = []
     total_bytes = 0
+    shared_bytes = 0
+    copied_bytes = 0
     try:
         for item in plan.files:
             source = component_roots[item.component].joinpath(*PurePosixPath(item.source_path).parts)
             target = stage.joinpath(*PurePosixPath(item.target_path).parts)
             target.parent.mkdir(parents=True, exist_ok=True)
-            digest, size = fileops.copy_file_pinned_exclusive(source, target)
+            remaining_copy_bytes = None if max_copy_bytes is None else max_copy_bytes - copied_bytes
+            if reuse_immutable:
+                digest, size, shared = reuse_file_pinned_exclusive(source, target, max_copy_bytes=remaining_copy_bytes)
+            else:
+                if remaining_copy_bytes is None:
+                    digest, size = fileops.copy_file_pinned_exclusive(source, target)
+                else:
+                    digest, size = fileops.copy_file_pinned_exclusive(source, target, max_bytes=remaining_copy_bytes)
+                shared = False
             if (digest, size) != (item.sha256, item.size):
                 _fail(
                     "materialized file differs from the package plan",
@@ -147,6 +174,8 @@ def materialize_package(plan: NativePackagePlan, output_dir: Path | str) -> Pack
                 )
             census.append({"path": item.target_path, "sha256": digest, "size": size})
             total_bytes += size
+            shared_bytes += size if shared else 0
+            copied_bytes += 0 if shared else size
         expected = {item.target_path for item in plan.files}
         observed = _tree_files(stage)
         if observed != expected:
@@ -178,6 +207,8 @@ def materialize_package(plan: NativePackagePlan, output_dir: Path | str) -> Pack
         file_count=len(census),
         total_bytes=total_bytes,
         files_sha256=hashlib.sha256(fileops.canonical_json(census)).hexdigest(),
+        reuse_immutable=reuse_immutable,
+        shared_bytes=shared_bytes,
     )
 
 

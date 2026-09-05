@@ -8,7 +8,8 @@ import hashlib
 import json
 import os
 import time
-from pathlib import Path
+from collections import Counter
+from pathlib import Path, PurePosixPath
 
 from comfy_omni.artifacts import fileops
 
@@ -42,11 +43,49 @@ def _tree_files(root: Path) -> set[str]:
     return result
 
 
+def _verify_storage(result: dict, package: Path, source_root: Path | None, expected_files: set[str]) -> None:
+    storage = result.get("storage")
+    if storage is None:
+        if source_root is not None:
+            _fail("source storage authority supplied without an immutable reuse receipt")
+        return
+    if source_root is None or storage.get("mode") != "immutable-reuse/v1":
+        _fail("immutable reuse requires an independently supplied source root")
+    source_root = fileops.reject_linked_ancestors(source_root).resolve(strict=True)
+    if source_root.as_posix() != storage["source_root"]:
+        _fail("storage source root disagrees with command authority")
+    if (storage["shared_bytes"], storage["copied_bytes"], storage["max_copy_bytes"]) != (result["total_bytes"], 0, 0):
+        _fail("storage byte accounting drifted")
+    records = storage["files"]
+    if len(records) != len(expected_files) or {item["target_path"] for item in records} != expected_files:
+        _fail("storage receipt file census drifted")
+    increments = Counter((entry["before"]["dev"], entry["before"]["ino"]) for entry in records)
+    for item in records:
+        for key in ("source_path", "target_path"):
+            relative = PurePosixPath(item[key])
+            if relative.is_absolute() or ".." in relative.parts or "\\" in item[key]:
+                _fail("storage path is not contained")
+        if item["target_path"] != f"Ref2VA/{item['source_path']}":
+            _fail("storage source and package destination mapping drifted")
+        before, after = item["before"], item["after"]
+        if before["mode"] & 0o222 or any(
+            before[key] != after[key] for key in ("dev", "ino", "size", "mtime_ns", "mode", "uid", "gid")
+        ):
+            _fail("source immutable metadata drifted")
+        if after["nlink"] != before["nlink"] + increments[(before["dev"], before["ino"])]:
+            _fail("source link increment disagrees with planned file census")
+        for path in (source_root / item["source_path"], package / item["target_path"]):
+            status = fileops.reject_linked_ancestors(path).lstat()
+            if any(getattr(status, f"st_{key}") != value for key, value in after.items()):
+                _fail(f"storage inode or metadata changed: {item['target_path']}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package", type=Path, required=True)
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--verdict-out", type=Path, required=True)
+    parser.add_argument("--components-root", type=Path, help="Independent source-root authority for immutable reuse")
     args = parser.parse_args()
 
     started = time.monotonic()
@@ -58,6 +97,7 @@ def main() -> int:
     manifest = fileops.parse_json_strict(manifest_path.read_bytes())
 
     expected_files = {item["path"] for item in manifest["files"]}
+    _verify_storage(result, package, args.components_root, expected_files)
     observed_files = _tree_files(package)
     if observed_files != expected_files | {MANIFEST_NAME, MODEL_INDEX_NAME}:
         missing = sorted(expected_files - observed_files)
@@ -92,6 +132,7 @@ def main() -> int:
         _fail("published model_index_sha256 disagrees with manifest")
     if model_index_bytes != fileops.canonical_json(model_index):
         _fail("published model_index is not canonical")
+    _verify_storage(result, package, args.components_root, expected_files)
 
     verdict = {
         "schema": "comfy-omni.e3.package-assembly-verdict/v1",
@@ -104,6 +145,8 @@ def main() -> int:
         "total_bytes": total_bytes,
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }
+    if "storage" in result:
+        verdict["storage"] = {key: result["storage"][key] for key in ("mode", "shared_bytes", "copied_bytes")}
     args.verdict_out.parent.mkdir(parents=True, exist_ok=True)
     args.verdict_out.write_text(json.dumps(verdict, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(verdict, indent=2, sort_keys=True), flush=True)

@@ -407,7 +407,7 @@ def sha256_file_pinned(path: Path) -> tuple[str, int]:
     return digest.hexdigest(), opened.st_size
 
 
-def copy_file_pinned_exclusive(source: Path, destination: Path) -> tuple[str, int]:
+def copy_file_pinned_exclusive(source: Path, destination: Path, *, max_bytes: int | None = None) -> tuple[str, int]:
     """Copy one stable regular file to a fresh path and verify the result.
 
     The source is held open and identity-checked across the bounded streaming
@@ -420,6 +420,9 @@ def copy_file_pinned_exclusive(source: Path, destination: Path) -> tuple[str, in
     source = reject_linked_ancestors(source)
     reject_linked_ancestors(destination.parent)
     source_descriptor, source_status = _open_pinned(source)
+    if max_bytes is not None and (type(max_bytes) is not int or max_bytes < 0 or source_status.st_size > max_bytes):
+        os.close(source_descriptor)
+        raise FsopsIoError("exclusive copy exceeds its allocation budget")
     write_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
     try:
         destination_descriptor = os.open(destination, write_flags, _WRITE_MODE)
