@@ -92,6 +92,7 @@ def test_prepare_serving_layout_propagates_an_invalid_package(tmp_path: Path) ->
     _, output = _published(tmp_path)
     payload_path = output / "Ref2VA/transformer/nested/artifact.bin"
     original = payload_path.read_bytes()
+    payload_path.chmod(0o644)
     payload_path.write_bytes(b"\x00" * len(original))
     work = tmp_path / "serving"
 

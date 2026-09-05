@@ -8,8 +8,9 @@ local-package resolution and the fail-closed package verification chain) plus th
 already-migrated packaging verification semantics in
 :mod:`comfy_omni.conversion.packaging.verification` and
 :mod:`comfy_omni.conversion.packaging.publication`. The validator is
-host-free by design: it never imports ``vllm_omni``, ``torch``, ``vllm``, or
-``fastapi``.
+lightweight at module import: it never imports ``vllm_omni``, ``torch``,
+``vllm``, or ``fastapi`` then. Legacy cache validation lazily uses CPU Torch
+to reproduce the original FP32 schedule; native package validation does not.
 """
 
 from __future__ import annotations
@@ -23,6 +24,13 @@ from typing import Any, NoReturn
 from comfy_omni.artifacts import fileops
 from comfy_omni.contracts.models import ContractError
 from comfy_omni.conversion.packaging.planning import PACKAGE_COMPONENTS
+from comfy_omni.runtime.h3.package_binding import (
+    CURVE_PROFILE,
+    HOST_COMMIT,
+    CurveCacheBinding,
+    RuntimeQuantizationBinding,
+    legacy_quantization,
+)
 
 MANIFEST_NAME = "h3-comfy-package.json"
 MODEL_INDEX_NAME = "model_index.json"
@@ -102,7 +110,7 @@ class RuntimePackageContract:
     """The verified, immutable identity of one validated runtime package."""
 
     package_root: Path
-    plan_content_sha256: str
+    plan_content_sha256: str | None
     manifest_sha256: str
     model_index_sha256: str
     schema: str
@@ -114,6 +122,12 @@ class RuntimePackageContract:
     total_bytes: int
     files_sha256: str
     component_paths: dict[str, Path]
+    layout: str = "comfy-omni-root-index-v3"
+    partition_path: Path | None = None
+    host_commit: str = HOST_COMMIT
+    profile: str | None = None
+    runtime_quantization_config: RuntimeQuantizationBinding | None = None
+    curve_cache: CurveCacheBinding | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-ready binding record for this verified package."""
@@ -140,7 +154,54 @@ class RuntimePackageContract:
             "total_bytes": self.total_bytes,
             "files_sha256": self.files_sha256,
             "component_paths": {component: path.as_posix() for component, path in self.component_paths.items()},
+            "layout": self.layout,
+            "partition_path": self.partition_path.as_posix() if self.partition_path is not None else None,
+            "host_commit": self.host_commit,
+            "profile": self.profile,
+            "runtime_quantization_config": self.runtime_quantization_config.to_dict()
+            if self.runtime_quantization_config
+            else None,
+            "curve_cache": {
+                "path": self.curve_cache.cache_path.as_posix(),
+                "sha256": self.curve_cache.sha256,
+                "size": self.curve_cache.size,
+                "schedule_contract_sha256": self.curve_cache.schedule.contract_sha256,
+                "producer": self.curve_cache.producer.to_dict(),
+            }
+            if self.curve_cache is not None
+            else None,
         }
+
+
+def _validate_legacy_runtime_package(root: Path, *, expected_class_name: str) -> RuntimePackageContract:
+    from comfy_omni.runtime.h3.legacy_package import verify_legacy_package
+
+    try:
+        verified = verify_legacy_package(root, expected_class_name=expected_class_name)
+    except (ContractError, fileops.FsopsError, OSError, ValueError, TypeError, KeyError) as exc:
+        evidence = getattr(exc, "evidence", {})
+        _fail(str(exc), evidence.get("stage", "legacy-package"))
+    return RuntimePackageContract(
+        package_root=verified.root,
+        plan_content_sha256=None,
+        manifest_sha256=verified.manifest_sha256,
+        model_index_sha256=verified.model_index_sha256,
+        schema=OUTPUT_SCHEMA,
+        class_name=expected_class_name,
+        partition="ref2va",
+        supported_tasks=("ref2va", "t2va", "fl2va"),
+        components=verified.components,
+        file_count=verified.file_count,
+        total_bytes=verified.total_bytes,
+        files_sha256=verified.files_sha256,
+        component_paths={component: verified.root / "Ref2VA" / component for component in PACKAGE_COMPONENTS},
+        layout="h3-forge-native-v3",
+        partition_path=verified.root / "Ref2VA",
+        host_commit=HOST_COMMIT,
+        profile=CURVE_PROFILE,
+        runtime_quantization_config=legacy_quantization(),
+        curve_cache=verified.curve_cache,
+    )
 
 
 def validate_runtime_package(
@@ -211,6 +272,11 @@ def validate_runtime_package(
             "manifest",
             schema=manifest.get("schema"),
         )
+    legacy_fields = {"serving_entrypoint", "routing_profile", "loadable_package"}
+    if legacy_fields.intersection(manifest):
+        if "routing" in manifest:
+            _fail("runtime package mixes native and legacy layout fields", "manifest")
+        return _validate_legacy_runtime_package(root, expected_class_name=expected_class_name)
     routing = manifest.get("routing")
     if (
         not isinstance(routing, dict)
@@ -314,6 +380,7 @@ def validate_runtime_package(
         total_bytes=recorded_total,
         files_sha256=hashlib.sha256(fileops.canonical_json(files)).hexdigest(),
         component_paths={component: (root / "Ref2VA" / component).resolve() for component in PACKAGE_COMPONENTS},
+        partition_path=root / "Ref2VA",
     )
 
 

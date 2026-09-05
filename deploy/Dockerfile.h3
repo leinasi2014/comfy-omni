@@ -1,0 +1,23 @@
+# The caller supplies the immutable digest of the validated H3 host environment.
+# This migration replaces the plugin while preserving the host and model recipe.
+ARG H3_HOST_IMAGE
+FROM ${H3_HOST_IMAGE}
+ARG H3_HOST_IMAGE
+ARG COMFY_OMNI_SOURCE_COMMIT
+
+LABEL org.opencontainers.image.title="ComfyOmni H3 runtime" \
+      ai.comfy-omni.source.commit="${COMFY_OMNI_SOURCE_COMMIT}" \
+      ai.comfy-omni.host.image="${H3_HOST_IMAGE}"
+
+COPY dist/*.whl /opt/comfy-omni/wheels/
+RUN case "${H3_HOST_IMAGE}" in *@sha256:*) ;; *) exit 2 ;; esac \
+    && python3 -m pip uninstall -y h3-forge comfy-omni \
+    && python3 -m pip install --no-deps /opt/comfy-omni/wheels/*.whl \
+    && python3 -c "import importlib.util; from comfy_omni.artifacts.build_identity import installed_tool_identity; assert importlib.util.find_spec('h3_forge') is None; print(installed_tool_identity())"
+
+ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 \
+    HOME=/tmp USER=comfy LOGNAME=comfy HF_HOME=/tmp/huggingface \
+    TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor TRITON_CACHE_DIR=/tmp/triton
+WORKDIR /work
+USER 65532:65532
+ENTRYPOINT []

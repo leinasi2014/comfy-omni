@@ -45,20 +45,19 @@ and its distinction between
 <!-- README_SYNC: status -->
 ## Project status
 
-**Early refactoring / walking-skeleton stage.** The repository now has installable distribution
-metadata, a lightweight package import, strict metadata-only checkpoint inspection, one
-digest-pinned text-encoder normalization command, and the first immutable native-source contract
-workflow (`scan`, `draft`, human-reviewed `pin`, and explicit `list`). Contract drafts and snapshots
-bind source, census, template, tool, reviewer, and evidence digests without mutable registry state.
-The plugin entry remains empty and idempotent. No general conversion pipeline, HTTP API, runtime
-architecture, or host patch has migrated yet. Do not treat these offline artifact operations as a
-production runtime or broad compatibility claim.
+**Pre-alpha migration.** The repository includes lightweight package/plugin registration,
+strict checkpoint inspection, pinned text-encoder normalization, immutable source contracts,
+bounded offline ConvRot export, and native package assembly and verification. The H3 integration
+also contains a [curve-cache compatibility adapter](docs/migration/h3-cache-runtime-e9cb011.md)
+for the explicitly audited `h3-forge@e9cb011` v3 recipe, alongside the existing native v3 layout.
+The adapter preserves legacy artifacts and wire identifiers and separates artifact producer
+identity from the executing ComfyOmni wheel.
 
-Except for the audited inspection, text-encoder normalization, and native-source contract slices,
-the existing H3 implementation remains in the legacy workspace while code origin, licensing,
-contracts, tests, and module ownership are audited before migration. The digest-pinned server model
-set is now frozen and its external assets are being prepared, but the current candidate is not
-accepted or releasable until the corresponding runtime evidence exists.
+Capabilities require their own representative host acceptance. Current acceptance and release
+decisions live in [the runtime issue](https://github.com/leinasi2014/comfy-omni/issues/11) and
+[the project epic](https://github.com/leinasi2014/comfy-omni/issues/4). HTTP API migration, additional
+runtime profiles, LoRA lifecycle and complete DiT switching are separate work; this candidate
+does not claim broad runtime compatibility or completion of the preview.
 
 <!-- README_SYNC: goals -->
 ## Design goals

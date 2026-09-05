@@ -139,6 +139,11 @@ def prepare_serving_layout(package_root: Path | str, work_dir: Path | str) -> Pa
     Returns the servable model path ``work_dir / Ref2VA``.
     """
     contract: RuntimePackageContract = validate_runtime_package(package_root)
+    if contract.layout == "h3-forge-native-v3":
+        # The fully verified legacy package already has the native partition
+        # index. Use those immutable bytes without creating or rewriting a view.
+        assert contract.partition_path is not None
+        return contract.partition_path
     package_root_resolved = contract.package_root
     work = Path(work_dir)
 

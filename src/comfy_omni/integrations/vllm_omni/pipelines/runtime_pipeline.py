@@ -8,9 +8,8 @@ Provenance: characterized from the ``h3-forge`` legacy
 ``H3ComfyMiniMaxH3Pipeline`` subclass shape (curve-cache DiT swap, per-worker
 latch, request locks, and schedule replay) as recorded in the ``h3-forge``
 ``h3/runtime_pipeline.py`` blob ``fa94f86da746ff9a11105584081464c1162d07b6`` at
-commit ``e9cb011d00b028c149db3978de246c54f6e34acc``. Those runtime mechanics are
-deliberately NOT migrated here yet; this slice only binds construction to a
-host-free validated package contract.
+commit ``e9cb011d00b028c149db3978de246c54f6e34acc``. Verified curve-cache packages
+use the dedicated cache pipeline; native packages retain the official pipeline.
 """
 
 from __future__ import annotations
@@ -45,6 +44,13 @@ def _resolve_package_root(model_path: Path) -> Path:
     if (model_path / MODEL_INDEX_NAME).is_file() and (model_path / MANIFEST_NAME).is_file():
         return model_path
     if (
+        model_path.name == SERVING_PARTITION_NAME
+        and (model_path / MODEL_INDEX_NAME).is_file()
+        and (model_path.parent / MODEL_INDEX_NAME).is_file()
+        and (model_path.parent / MANIFEST_NAME).is_file()
+    ):
+        return model_path.parent
+    if (
         (model_path / MODEL_INDEX_NAME).is_file()
         and (model_path.parent / MARKER_NAME).is_file()
         and (model_path / "transformer").is_symlink()
@@ -59,18 +65,9 @@ def _resolve_package_root(model_path: Path) -> Path:
 
 
 class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
-    """A ComfyOmni package-bound Ref2VA pipeline.
+    """Construct the runtime selected by the complete verified package contract."""
 
-    The legacy subclass shape (``h3/runtime_pipeline.py`` blob
-    ``fa94f86da746ff9a11105584081464c1162d07b6``) is preserved; the curve-cache
-    DiT swap, per-worker latch, request locks, and schedule replay are
-    deliberately NOT migrated yet. This slice only verifies the package before
-    delegating to the official pipeline. ``od_config.model`` may be a real
-    package root or a serving layout view; validation always binds the real
-    package, while the host loads through the given path.
-    """
-
-    def __init__(self, *, od_config, prefix: str = "") -> None:
+    def __new__(cls, *, od_config, prefix: str = ""):
         model_path = getattr(od_config, "model", None)
         if not isinstance(model_path, (str, Path)) or not model_path:
             raise RuntimePackageContractError(
@@ -78,7 +75,16 @@ class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
                 evidence={"stage": "package-binding"},
             )
         package_root = _resolve_package_root(Path(model_path))
-        self.comfy_omni_package = validate_runtime_package(package_root)
+        package = validate_runtime_package(package_root)
+        if getattr(package, "curve_cache", None) is not None:
+            from comfy_omni.integrations.vllm_omni.pipelines.cache_pipeline import H3CurveCachePipeline
+
+            return H3CurveCachePipeline(od_config=od_config, package=package, prefix=prefix)
+        instance = super().__new__(cls)
+        object.__setattr__(instance, "comfy_omni_package", package)
+        return instance
+
+    def __init__(self, *, od_config, prefix: str = "") -> None:
         super().__init__(od_config=od_config, prefix=prefix)
 
 
