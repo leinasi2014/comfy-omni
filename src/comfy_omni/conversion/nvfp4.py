@@ -38,8 +38,22 @@ SUPPORTED_FORMATS = frozenset({"nvfp4", "int8_tensorwise"})
 
 #: E2M1 lookup: nibble -> value (sign bit = bit 3).
 E2M1_LUT = (
-    0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0,
-    -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0,
+    0.0,
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    3.0,
+    4.0,
+    6.0,
+    -0.0,
+    -0.5,
+    -1.0,
+    -1.5,
+    -2.0,
+    -3.0,
+    -4.0,
+    -6.0,
 )
 
 
@@ -113,8 +127,7 @@ def decode_nvfp4(
     blocks_per_row = logical_cols // 16
     if tuple(block_scale.shape) != (rows, blocks_per_row):
         raise ValueError(
-            f"nvfp4 block_scale shape {tuple(block_scale.shape)} does not match "
-            f"natural grid ({rows}, {blocks_per_row})"
+            f"nvfp4 block_scale shape {tuple(block_scale.shape)} does not match natural grid ({rows}, {blocks_per_row})"
         )
     if per_tensor_scale.numel() != 1:
         raise ValueError(f"nvfp4 per-tensor scale must be a scalar, got {tuple(per_tensor_scale.shape)}")
@@ -122,6 +135,7 @@ def decode_nvfp4(
     # On-disk qdata may be stored signed (I8) with two-complement nibbles;
     # force the unsigned bit pattern before splitting nibbles.
     import os as _os
+
     if _os.environ.get("COMFY_OMNI_TE_DEBUG") == "1":
         print(f"NVFP4-DECODE qdata dtype={qdata.dtype} shape={tuple(qdata.shape)} ", flush=True)
     qdata = qdata.to(torch.uint8)

@@ -19,9 +19,10 @@ from __future__ import annotations
 import hashlib
 import json
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from comfy_omni.conversion.oracle import contract
 
@@ -136,9 +137,7 @@ def _validate_census(census: dict[str, tuple[str, tuple[int, ...]]]) -> None:
         a_shape = census[name][1]
         b_shape = census[b_name][1]
         if a_shape[1] != b_shape[0]:
-            raise PreflightError(
-                f"candidate {name!r} rank mismatch: A{a_shape} vs B{b_shape}"
-            )
+            raise PreflightError(f"candidate {name!r} rank mismatch: A{a_shape} vs B{b_shape}")
 
 
 def _validate_profile(header: dict[str, Any]) -> None:
@@ -153,9 +152,7 @@ def _validate_profile(header: dict[str, Any]) -> None:
         "output": metadata.get("output") in _PROFILE_OUTPUTS,
     }
     if not all(checks.values()):
-        raise PreflightError(
-            "candidate metadata does not carry the pinned Comfy Turbo-V4 fold profile"
-        )
+        raise PreflightError("candidate metadata does not carry the pinned Comfy Turbo-V4 fold profile")
 
 
 def _resolve_target(module: str) -> bool:
@@ -197,8 +194,7 @@ def _bind_official_base_catalog(transformer_dir: Path | str) -> dict[str, Any]:
         markers.extend(name for name in header if name != "__metadata__" and ".comfy_quant" in name)
     if markers:
         raise PreflightError(
-            "transformer base carries serialized comfy_quant markers; serve the "
-            "dequantized dense BF16 representation"
+            "transformer base carries serialized comfy_quant markers; serve the dequantized dense BF16 representation"
         )
     return {"bound": True, "representation": "dense-bf16", "shards": len(shards)}
 
@@ -220,9 +216,7 @@ def _run_offline_fold_oracle(
     )
 
 
-def _refuse(
-    candidate_id: str, reason_code: str, stage: str, detail: str
-) -> LoRACompatibilityVerdict:
+def _refuse(candidate_id: str, reason_code: str, stage: str, detail: str) -> LoRACompatibilityVerdict:
     return LoRACompatibilityVerdict(
         candidate_id=candidate_id,
         verdict=UNSUPPORTED,

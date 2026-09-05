@@ -1877,8 +1877,6 @@ def discover_hybrid8_dit_form(model_path: str | Path) -> Hybrid8DitForm | None:
     )
 
 
-
-
 class _ScopedAttribute:
     """Temporarily replace a module attribute and restore it afterwards."""
 
@@ -1947,6 +1945,7 @@ def _normalize_te_name(name: str) -> str:
         return "model.language_model." + name[len("model.") :]
     return name
 
+
 class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
     """Official Qwen3-VL encoder that decodes comfy_quant NVFP4/int8 weights.
 
@@ -1970,8 +1969,7 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
             qdata = group.get("weight")
             if qdata is None:
                 raise DenseHybridStructureError(
-                    f"comfy_quant group {base!r} is missing its weight tensor; "
-                    f"group keys={sorted(group)}"
+                    f"comfy_quant group {base!r} is missing its weight tensor; group keys={sorted(group)}"
                 )
             try:
                 decoded = decode_weight(
@@ -2035,12 +2033,8 @@ class CompatQwen3VLEncoder(OfficialMiniMaxH3Qwen3VLEncoder):
                 if group.get("marker") is not None:
                     yield decode_group(base, group)
                 elif "scale" in group or "scale2" in group:
-                    raise DenseHybridStructureError(
-                        f"comfy_quant group {base!r} carried scales but no weight/marker"
-                    )
+                    raise DenseHybridStructureError(f"comfy_quant group {base!r} carried scales but no weight/marker")
                 elif group.get("weight") is not None:
                     yield (_normalize_te_name(f"{base}.weight"), group["weight"])
 
         return super().load_weights(stream())
-
-
