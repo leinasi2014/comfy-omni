@@ -1,8 +1,8 @@
 # Beta4 host runtime source and contract
 
 This bounded adapter consumes the fixed 534-tensor `beta4-dense-bf16` export
-described in [the conversion contract](beta4-dense-conversion.md). Its acceptance
-contract is [Issue #11](https://github.com/leinasi2014/comfy-omni/issues/11#issuecomment-5550245718).
+described in [the source attribution](source-attribution.md). This existing adapter requires exported tensors;
+the current plan removes that prerequisite from general runtime loading.
 Runtime acceptance decisions and pending work remain in the issue; this document
 records source ownership and the behavior boundary.
 

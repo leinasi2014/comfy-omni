@@ -42,6 +42,13 @@ Every executable Issue freezes the smallest useful contract before production co
 Implementation notes may guide work, but acceptance describes behavior. Architecture diagrams and
 plans support a current boundary; they do not replace an executable slice.
 
+The H3 runtime target reuses one existing set of read-only ComfyUI/H3 assets. Startup and hot
+loading manage RAM/VRAM and must not depend on generating new disk conversions or complete model
+packages. Record current implementation gaps without presenting this target as already delivered.
+The first-release sequence is H1 existing-source loading, H2 RAM/VRAM residency, component reuse
+and switching in existing workers, then H3 real-host validation and delivery. Complete LoRA
+lifecycle, tools and node workflows are deferred and do not block this release.
+
 ## Definition of Ready
 
 A slice is ready only when:
@@ -53,14 +60,18 @@ A slice is ready only when:
   observation and the nearest useful future automation instead;
 - legacy migration input is pinned by repository, commit/blob, path, license, attribution, and
   distribution disposition;
-- required model files, container bases, and other external assets are authorized before coding;
-  the designated server prefetches them into their declared cache/model root, resolves every mutable
-  tag to an immutable digest, verifies expected size/SHA256 where available, and records readiness;
+- acceptance that needs model files identifies the existing authorized read-only assets and their
+  retained verification records; container bases and integration versions resolve to an immutable digest
+  or exact source identity. Reuse the declared environment rather than prefetching or copying assets
+  for each code candidate. A genuinely missing asset blocks its dependent check, not independent
+  code review or small-fixture development;
 - model sources will be mounted read-only and outputs/evidence have separate bounded writable roots;
 - existing user changes and the current integration state have been read back.
 
-Prefetch is readiness evidence, not feature acceptance. A cached image or downloaded model never
-proves conversion, loading, generation, LoRA, or hot-swap behavior.
+Asset availability is readiness evidence, not feature acceptance. A cached image or downloaded
+model never proves conversion, loading, generation, LoRA, or hot-swap behavior. Acquiring a missing
+asset is a separate declared action; neither readiness nor a documentation edit authorizes new
+model downloads, conversion outputs or package copies.
 
 ## Delivery loop
 
@@ -88,13 +99,22 @@ Evidence proves only the surface it exercised. Bind it to the source commit/arch
 container base digest, candidate image/wheel digest, relevant configuration, fixture/model/LoRA
 SHA256, process identity, and state/output root whenever those dimensions can drift.
 
+Separate initial full-content verification from subsequent bounded identity checks. Repeated code
+validation reuses the same model files and prior source digests, checks for file/header/configuration
+drift, and reports which observations are fresh. Do not label a lightweight check as a new full hash,
+and do not invalidate unchanged source or numerical evidence merely because unrelated code changed.
+Re-run the affected behavior, preserving both the earlier failure and later result. Rebuilding a
+software wheel is not a reason to regenerate model payloads or assemble another model package.
+
 GPU and stateful acceptance additionally verifies the artifact actually loaded by the declared
-process. Model presence is not load proof; one generation is not LoRA activation proof; A and B in
-restarted processes are not A -> B -> A hot-swap proof. Failed observations are retained, and a
-corrected stateful attempt runs in a clean or deliberately reset target.
+workers. First-release A -> B -> A acceptance keeps one control-service instance and its existing
+workers, verifies component reuse and records both control and worker identities. Worker
+reconstruction is reported recovery or fallback, not normal hot-loading proof. Model presence is
+not load proof. Failed observations are retained, and a corrected stateful attempt runs in a clean
+or deliberately reset target. LoRA, tools and nodes have separate future acceptance contracts.
 
 Docker isolation, server mounts, exception handling, and host allowlists are owned by
-[`docker-first.md`](docker-first.md). Model identities and the release evidence ladder are owned by
+[`docker-first.md`](docker-first.md). Model identities and the scope of acceptance evidence are owned by
 [`../testing/model-validation-baseline.md`](../testing/model-validation-baseline.md).
 
 ## Git, review, and integration

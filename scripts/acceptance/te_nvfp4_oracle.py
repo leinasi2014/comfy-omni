@@ -1,7 +1,7 @@
 """Independent stdlib TE scalar oracle; never imports the producer or Torch.
 
 Arithmetic is independently expressed from the characterized E2M1/E4M3FN and
-BF16 contract. Reference/version/attribution: docs/migration/te-nvfp4-dense.md.
+BF16 contract. Reference/version/attribution: docs/migration/source-attribution.md.
 """
 
 from __future__ import annotations

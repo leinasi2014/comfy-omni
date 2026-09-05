@@ -1,7 +1,7 @@
 """Closed descriptor authority for the fixed 50-layer Qwen3VL H3 encoder.
 
-Header-derived inventories and explicit consumer semantics are documented in
-docs/migration/te-nvfp4-dense.md. No model bytes or runtime dependencies are loaded.
+Numerical reference attribution is documented in
+docs/migration/source-attribution.md. No model bytes or runtime dependencies are loaded.
 """
 
 from __future__ import annotations

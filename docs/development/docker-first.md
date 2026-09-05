@@ -95,6 +95,11 @@ live evidence. A mirror does not make a mutable tag an acceptable release identi
 - Mount checkpoint sources and validation models read-only. Conversion output and evidence use a
   separate, explicitly named, bounded read-write path or volume. Source and output paths cannot
   overlap.
+- Reuse the existing ComfyUI/H3 model files and component directories across code checks. Normal
+  startup and hot loading must not require a new normalized copy, dense export or assembled model
+  package. Hot loading manages RAM/VRAM residency; existing compatible legacy packages remain
+  valid inputs. First-release acceptance covers existing-source H3 loading, residency and switching,
+  followed by real-host validation and delivery. LoRA lifecycle, tools and nodes are deferred.
 - GPU containers receive only the devices required by the acceptance case. Host driver checks are
   diagnostic evidence, not runtime acceptance.
 - Secrets enter only through an approved runtime secret mechanism, never image layers, build args,
@@ -102,33 +107,32 @@ live evidence. A mirror does not make a mutable tag an acceptable release identi
 - Pin production/runtime base images and integration dependencies before claiming a release
   candidate. Record image ID and content digest in server evidence.
 
-## Explicit immutable storage administration
-
-The opt-in package `reuse_immutable` mode is a metadata write operation, separate from ordinary
-conversion and inference. Hardlinks may require a shared writable mount for the named related
-component roots and a distinct private output subtree. A live Issue/PR must first bind that
-specific operation, roots, copy budget, verification and rollback. Source payloads must have no
-write permission and may only be opened read-only; no source chmod, replacement or payload write
-is permitted. Use directory-descriptor operations and exclusive planned staging names. Record
-the intentional link-count/ctime changes and actual shared/copied bytes. Cross-mount fallback
-must fit its explicit copy allocation. The non-root, capability, network, evidence and container
-execution requirements above still apply. Normal source/model mounts remain read-only.
-
-See [immutable package reuse](../migration/immutable-package-reuse.md) for the API and invariant.
-
 ## CI and server acceptance
 
 GitHub Actions may check out source, inspect Git state, and invoke Docker on the runner. It must not
 set up Python or execute project tools on the runner. Docker targets are the only Python quality and
 packaging authority.
 
-Server acceptance uses a candidate image built from the exact source commit. Model byte size and
-SHA256 are verified inside a container before inspection or load. Model roots are mounted
-read-only; only a dedicated evidence directory is writable. Each receipt records the source commit,
+Server acceptance uses a candidate image built from the exact source commit. Establish an asset's
+byte size and full SHA256 inside Docker when it first enters the trusted validation inventory, and
+retain that identity record. Header-only inspection does not claim a full-payload verification.
+Repeated code checks reuse the same read-only assets and declared host environment. They check
+file identity, size, change times and bounded header/configuration metadata against the retained
+record; they do not automatically rehash or copy every model before each load. Metadata checks
+are not a new content digest. Drift stops the affected load and requires an explicit decision to
+re-establish that asset's identity; it does not trigger a sweep of unrelated models.
+
+Model roots are mounted read-only; only a dedicated evidence directory is writable. Each receipt
+references the original asset verification and the current identity observations, and records the source commit,
 dirty state, wheel SHA256, image ID/digest, Docker and GPU runtime versions, sanitized container
 configuration, model/LoRA/VAE SHA256 values, commands, exit codes, timestamps, and resource
-observations. LoRA lifecycle and full-DiT A → B → A switching must occur in the same declared host
-process when that is the acceptance contract.
+observations. First-release full-DiT A → B → A switching keeps one control-service instance and its
+existing workers, reuses unchanged components and records their identities. Worker reconstruction is
+reported recovery or fallback, not normal hot-loading acceptance. LoRA and node/tool acceptance is
+outside the first release and runs only under a separately selected task.
+
+Missing assets make the dependent real-model check unavailable; do not download or generate
+replacements merely to satisfy an unrelated code check.
 
 Temporary containers are removed after a run. Persistent evidence and deliberately cached model
 assets are retained only in their declared directories or volumes; cleanup resolves and verifies

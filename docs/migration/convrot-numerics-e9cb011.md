@@ -69,11 +69,7 @@ oracle in the designated-server `numerics-runtime` container.
 The bounded CPU/CUDA acceptance for candidate `b0b757a696d9` is recorded in
 [`docs/evidence/convrot-numerics-b0b757a696d9.md`](../evidence/convrot-numerics-b0b757a696d9.md).
 
-## Subsequent issue #8 work
+## Scope boundary
 
-Candidate `1b2324ada243` connected this backend to held descriptor reads, bounded payload producers,
-QKV reorder, the immutable transaction, and external contract-snapshot carry. Its accepted scope is
-documented in
-[`docs/migration/convrot-payload-producers-e9cb011.md`](convrot-payload-producers-e9cb011.md).
-A complete Ref2VA conversion must still pass before `export-native` or native-load claims. None of
-those later outcomes are implied by either the numerical smoke or bounded synthetic producer proof.
+This record preserves the retained inverse-ConvRot numerical behavior only. It does not describe an
+export, package, or runtime setup path. See the [post-merge refactoring plan](../post-merge-refactoring-plan.md).

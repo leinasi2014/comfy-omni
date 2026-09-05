@@ -1,26 +1,45 @@
-# ComfyOmni architecture diagrams
+# H3 runtime architecture
 
-The target diagram is a design contract, not an implementation-complete claim. Its status cards
-separate the M0 capabilities already proved from the conversion, runtime, LoRA, hot-swap, and GPU
-work that remains.
+The [current plan](../post-merge-refactoring-plan.md) limits the first delivery to reusing existing
+H3/ComfyUI model files and loading, unloading, sharing and switching components in RAM/VRAM.
+Nodes, graph execution, complete LoRA and tool support are later extensions.
+This diagram is the target; [current capability](../user-guide.md) remains narrower.
 
-- [Interactive target architecture](comfy-omni-target.html)
-- [Version-controlled Archify specification](comfy-omni-target.architecture.json)
-- [Static light preview](comfy-omni-target.visual-check.2048x1320.light.png)
-- [Static dark preview](comfy-omni-target.visual-check.2048x1320.dark.png)
-- [Visual-check receipt](comfy-omni-target.visual-check.json)
+```mermaid
+flowchart TD
+    Entry[Plugin API: select / load / unload / switch] --> App[Application services]
+    App --> Session[Session: generations and request leases]
+    Session --> Residency[Component residency and RAM / VRAM budget]
+    Residency --> Host[vLLM-Omni adapter and existing workers]
+    Host --> Loader[Format-specific component loaders]
+    Loader --> Sources[Read-only source bindings and identity]
+    Sources --> Files[Existing ComfyUI H3 files]
+    Sources --> Legacy[Existing compatible package files]
+    Loader --> Math[Shared numerical functions]
+```
 
-Evidence inputs are the latest consolidated legacy source
-`h3-forge@e9cb011d00b028c149db3978de246c54f6e34acc`, the target ownership rules in
-[`../post-merge-refactoring-plan.md`](../post-merge-refactoring-plan.md), and the ComfyOmni source
-revision pinned inside the diagram specification. The primary dependency direction is:
+A source binding describes existing files, their roles, identities, representation and configuration.
+An existing package is one source kind, not a required preparation workflow. A loader supplies tensors
+or native quantized objects the pinned host can consume under an explicit peak-memory budget.
+It does not invoke a disk exporter or materialize another complete model.
 
-`public edges -> application -> offline conversion -> validation -> publication -> immutable package`
+The session holds model generations and request leases. Residency is component-level: unchanged
+text encoders, VAEs and tokenizers can be shared across model choices. In-flight requests retain their
+components; switching drains requests, prepares or unloads under budget, commits only a complete new
+state, invalidates relevant caches and recovers the previous usable state on failure. Normal compatible
+H3 switching uses the existing workers; reconstruction is a separately reported recovery/fallback.
 
-Runtime loading is downstream of the immutable package. Host-specific behavior remains behind
-`integrations/vllm_omni`, and only publication may commit a final package directory.
+Keep the existing dependency direction:
 
-Archify delivery validation passed all 9 showcase checks with 0 errors and 0 warnings. Automated
-containment/readability checks passed at 1440x900, 1600x1000, 1920x1080, and 2048x1320 in light and
-dark capture modes; the generated screenshots were also visually reviewed for legibility, route
-clarity, boundary placement, and status-card truthfulness.
+```text
+core -> domain / contracts / artifacts -> conversion / runtime
+     -> application -> CLI / API / integrations
+```
+
+The layer on the right may depend on the layer on the left. Generic runtime code must not require a
+concrete integration-specific exported-package binding. Share numerical functions without coupling
+runtime loading to file publication. Plugin import stays lightweight.
+
+Future node operations will use the same component handles and leases. No graph engine or visual
+editor is required for the current delivery. The old package-first architecture files and procedures
+have been deleted; only necessary source attribution and valid runtime evidence remain.

@@ -23,6 +23,5 @@ unmodified and included as license files in wheels and source distributions.
 The independent scalar verifier uses a separate standard-library expression of
 the characterized format and rounding contract; it imports neither this backend
 nor any upstream numerical implementation. No GPL ComfyUI or writer code is
-copied or executed by the decoder or verifier. Detailed derivation and the
-consumer-versus-historical-writer distinction are recorded in
-[the migration note](docs/migration/te-nvfp4-dense.md).
+copied or executed by the decoder or verifier. Reference identities are recorded in
+[the source attribution](docs/migration/source-attribution.md).

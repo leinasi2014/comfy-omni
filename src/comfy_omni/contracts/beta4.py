@@ -3,7 +3,7 @@
 The already distributed beta3 inventory derives from Apache-2.0 h3-forge
 e9cb011d00b028c149db3978de246c54f6e34acc, templates blob
 443a5cc9ca58891c3852079c8589fbe2f5af6484. The beta4 header comparison and
-new authorization are recorded in docs/migration/beta4-dense-conversion.md.
+new authorization are recorded in docs/migration/source-attribution.md.
 """
 
 from __future__ import annotations

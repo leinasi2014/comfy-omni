@@ -1,19 +1,18 @@
 # ComfyOmni documentation
 
-- [Post-merge refactoring and open-source plan](post-merge-refactoring-plan.md)
-- [Agile delivery agreement](development/delivery.md)
-- [Docker-first execution policy](development/docker-first.md)
-- [Validated target architecture](architecture/README.md)
-- [Pinned model validation baseline](testing/model-validation-baseline.md)
-- [Machine-readable model baseline v1](testing/model-baseline.v1.json)
-- [Checkpoint inspection migration record](migration/checkpoint-inspection-e9cb011.md)
-- [Pinned text-encoder normalization design](migration/text-encoder-normalization.md)
-- [Immutable contract workflow migration ledger](migration/contract-workflows-e9cb011.md)
-- [ConvRot native-export planning design](migration/convrot-native-export-plan-e9cb011.md)
-- [ConvRot numerical backend design](migration/convrot-numerics-e9cb011.md)
-- [ConvRot bounded payload-producer design](migration/convrot-payload-producers-e9cb011.md)
-- [Public acceptance evidence](evidence/README.md)
+- [User guide](user-guide.md) · [中文使用指南](user-guide.zh-CN.md)
+- [H3-first refactoring plan / H3 优先重构方案](post-merge-refactoring-plan.md)
+- [Runtime architecture](architecture/README.md)
+- [Fixed model validation baseline](testing/model-validation-baseline.md)
+- [Machine-readable asset identities](testing/model-baseline.v1.json)
+- [Development and delivery agreement](development/delivery.md)
+- [Docker execution policy](development/docker-first.md)
 
-This directory is the documentation root for the new ComfyOmni project skeleton. Historical
-`h3-forge` documents remain in the legacy repository until their authority and licensing
-disposition is handled by the migration plan.
+Live progress and acceptance decisions belong in
+[project Issue #4](https://github.com/leinasi2014/comfy-omni/issues/4).
+The plan defines behavior and boundaries; it does not assert that the migration is complete.
+
+[Migration records](migration/) retain source attribution and supported compatibility contracts.
+[Acceptance evidence](evidence/README.md) states what the recorded runtime candidates actually proved.
+The superseded offline-package roadmap, operator procedures and generated architecture diagrams have
+been deleted. They are not a parallel development route.
