@@ -144,6 +144,15 @@ def publish_native_export(
         if before_manifest is not None:
             try:
                 before_manifest()
+                # The final input reread can be long. It must not redirect the
+                # commit marker into a replacement output or parent directory.
+                parent_status = stage.parent.lstat()
+                current = stage.output_dir.lstat()
+                if (parent_status.st_dev, parent_status.st_ino) != stage.parent_identity or (
+                    current.st_dev,
+                    current.st_ino,
+                ) != output_identity:
+                    raise ContractError("output or parent directory identity changed during final input check")
             except BaseException:
                 # Remove only this call's exclusive directory and its own staged links.
                 # A foreign replacement must never be removed during failure cleanup.

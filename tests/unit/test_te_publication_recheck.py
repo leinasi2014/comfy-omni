@@ -8,6 +8,7 @@ from test_native_export_transaction import _bound_plan, _tool, _write_fixture
 from comfy_omni.artifacts import fileops
 from comfy_omni.contracts.models import ContractError
 from comfy_omni.conversion.exporters.execution import execute_native_export
+from comfy_omni.conversion.packaging.native_export import prepare_native_export, publish_native_export, stage_document
 
 
 def test_native_export_rechecks_source_after_published_payload_rehash(tmp_path, monkeypatch):
@@ -33,3 +34,27 @@ def test_native_export_rechecks_source_after_published_payload_rehash(tmp_path, 
         execute_native_export(plan, output, tool=_tool())
     assert changed
     assert not output.exists()
+
+
+@pytest.mark.parametrize("replace_parent", [False, True])
+def test_final_check_cannot_redirect_manifest_into_foreign_directory(tmp_path, replace_parent):
+    parent = tmp_path / "parent"
+    parent.mkdir()
+    output = parent / "output"
+    stage = prepare_native_export(output)
+    artifact = stage_document(stage, "config.json", b"{}\n", kind="config")
+
+    def replace_directory():
+        if replace_parent:
+            parent.rename(tmp_path / "original-parent")
+            parent.mkdir()
+            output.mkdir()
+        else:
+            output.rename(parent / "original-output")
+            output.mkdir()
+        (output / "foreign.txt").write_bytes(b"untouched")
+
+    with pytest.raises(ContractError, match="identity changed"):
+        publish_native_export(stage, (artifact,), {"schema": "synthetic/v1"}, before_manifest=replace_directory)
+    assert {path.name for path in output.iterdir()} == {"foreign.txt"}
+    assert (output / "foreign.txt").read_bytes() == b"untouched"
