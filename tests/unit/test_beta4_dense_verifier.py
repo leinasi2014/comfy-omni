@@ -55,30 +55,43 @@ def _schema(records):
     return _digest([{"name": n, "dtype": r["dtype"], "shape": r["shape"]} for n, r in sorted(records.items())])
 
 
-def _fixture(tmp_path, monkeypatch):
+def _fixture(tmp_path, monkeypatch, *, row_scale=0.5, group_size=4):
     verifier = _verifier()
     source, output = tmp_path / "source.safetensors", tmp_path / "output"
     output.mkdir()
     source_tensors, target_tensors = [], []
     permutation = [0, 2, 4, 1, 3, 5]
-    # Two 4-wide blocks in each row exercise more than the first block.
+    columns = 2 * group_size
+    h4 = ((1, 1, 1, -1), (1, 1, -1, 1), (1, -1, 1, 1), (-1, 1, 1, 1))
+    levels = 1 if group_size == 4 else 4
+    matrix = tuple(
+        tuple(
+            math.prod(h4[(row // 4**level) % 4][(column // 4**level) % 4] for level in range(levels))
+            for column in range(group_size)
+        )
+        for row in range(group_size)
+    )
+    # Independent integer Kronecker oracle, two complete groups in every row.
     for name, rows in (("blocks.0.attn.out_proj.weight", 4), ("blocks.0.attn.qkv_proj.weight", 6)):
         prefix = name.removesuffix(".weight")
-        qvalues = [((row * 8 + column) % 11) - 5 for row in range(rows) for column in range(8)]
-        source_tensors.append((name, "I8", [rows, 8], struct.pack(f"<{len(qvalues)}b", *qvalues)))
-        source_tensors.append((prefix + ".weight_scale", "F32", [rows, 1], struct.pack(f"<{rows}f", *([0.5] * rows))))
-        marker = _canonical({"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": 4})
+        qvalues = [((row * columns + column) % 11) - 5 for row in range(rows) for column in range(columns)]
+        source_tensors.append((name, "I8", [rows, columns], struct.pack(f"<{len(qvalues)}b", *qvalues)))
+        source_tensors.append(
+            (prefix + ".weight_scale", "F32", [rows, 1], struct.pack(f"<{rows}f", *([row_scale] * rows)))
+        )
+        marker = _canonical({"format": "int8_tensorwise", "convrot": True, "convrot_groupsize": group_size})
         source_tensors.append((prefix + ".comfy_quant", "U8", [len(marker)], marker))
         dense = []
-        h4 = ((1, 1, 1, -1), (1, 1, -1, 1), (1, -1, 1, 1), (-1, 1, 1, 1))
         for row in permutation if "qkv" in name else range(rows):
-            for block in (0, 4):
-                vector = qvalues[row * 8 + block : row * 8 + block + 4]
+            for block in (0, group_size):
+                vector = qvalues[row * columns + block : row * columns + block + group_size]
                 dense.extend(
-                    sum(coef * value for coef, value in zip(coefficients, vector, strict=True)) / 4
-                    for coefficients in h4
+                    sum(coef * value for coef, value in zip(coefficients, vector, strict=True))
+                    * row_scale
+                    / math.sqrt(group_size)
+                    for coefficients in matrix
                 )
-        target_tensors.append((name, "BF16", [rows, 8], _bf16(dense)))
+        target_tensors.append((name, "BF16", [rows, columns], _bf16(dense)))
     for block in range(2):
         name = f"token_refiner.blocks.{block}.attn.qkv_proj.weight"
         values = [float(i + block) for i in range(48)]
@@ -109,7 +122,7 @@ def _fixture(tmp_path, monkeypatch):
         "TARGET_TENSOR_COUNT": 5,
         "SOURCE_DTYPES": {"BF16": 3, "I8": 2, "F32": 2, "U8": 2},
         "GROUP_COUNT": 2,
-        "GROUP_SIZE": 4,
+        "GROUP_SIZE": group_size,
         "SHARD_COUNT": 1,
         "QKV_DIMENSIONS": (2, 1, 1),
         "EXPECTED_OPERATIONS": operations,
@@ -123,7 +136,7 @@ def _fixture(tmp_path, monkeypatch):
         prefix, group = None, None
         if dtype in {"I8", "F32", "U8"}:
             prefix = name.rsplit(".", 1)[0]
-            group = 4
+            group = group_size
             if dtype == "I8":
                 operation = "inverse-convrot-to-bf16" + ("-runtime-qkv-to-grouped" if "qkv" in name else "")
             else:
@@ -195,7 +208,7 @@ def _fixture(tmp_path, monkeypatch):
         "resource_envelope": {
             "max_rows": 128,
             "max_shard_bytes": verifier.MAX_SHARD_BYTES,
-            "largest_target_tensor_bytes": 96,
+            "largest_target_tensor_bytes": max(96, 6 * columns * 2),
         },
     }
     args = SimpleNamespace(
@@ -315,6 +328,27 @@ def test_independent_verifier_covers_every_kind_and_records_numeric_limits(tmp_p
     assert fixture.args.verification.read_bytes() == before
 
 
+@pytest.mark.parametrize("group_size", [4, 256])
+def test_zeroed_small_weights_with_rehashed_receipts_are_rejected(tmp_path, monkeypatch, group_size):
+    fixture = _fixture(tmp_path, monkeypatch, row_scale=2**-16, group_size=group_size)
+    assert fixture.verifier._verify(fixture.args)["status"] == "VERIFIED"
+    path = fixture.args.output / fixture.shard
+    raw = bytearray(path.read_bytes())
+    for name in ("blocks.0.attn.out_proj.weight", "blocks.0.attn.qkv_proj.weight"):
+        record = fixture.target_records[name]
+        start, end = fixture.target_offset + record["start"], fixture.target_offset + record["end"]
+        values = [
+            struct.unpack("<f", struct.pack("<I", value << 16))[0]
+            for (value,) in struct.iter_unpack("<H", raw[start:end])
+        ]
+        assert 0 < max(abs(value) for value in values) < 0.05
+        raw[start:end] = bytes(end - start)
+    path.write_bytes(raw)
+    _refresh(fixture)
+    with pytest.raises(ValueError, match="numerical sample"):
+        fixture.verifier._verify(fixture.args)
+
+
 def test_numeric_duration_excludes_copy_work_and_estimate_is_explicit(tmp_path, monkeypatch):
     fixture = _fixture(tmp_path, monkeypatch)
     clock = iter((5.0, 7.0, 11.0, 13.0))
@@ -338,6 +372,73 @@ def test_hadamard_oracle_matches_independent_kronecker_basis_across_blocks(group
             coefficient = math.prod(h4[(row // 4**level) % 4][(column // 4**level) % 4] for level in range(levels))
             expected.append(coefficient / math.sqrt(group))
     assert verifier._regular_hadamard(values, group) == expected
+
+
+@pytest.mark.parametrize(
+    "fp32_bits,bf16_bits",
+    [
+        (0x3F807FFF, 0x3F80),
+        (0x3F808000, 0x3F80),
+        (0x3F808001, 0x3F81),
+        (0x3F818000, 0x3F82),
+        (0xBF808000, 0xBF80),
+        (0xBF818000, 0xBF82),
+        (0x00000000, 0x0000),
+        (0x80000000, 0x8000),
+        (0x00000001, 0x0000),
+        (0x00008000, 0x0000),
+        (0x00008001, 0x0001),
+        (0x00018000, 0x0002),
+        (0x80008000, 0x8000),
+        (0x00010000, 0x0001),
+    ],
+)
+def test_bf16_rounding_uses_nearest_even_and_preserves_zero_sign(fp32_bits, bf16_bits):
+    verifier = _verifier()
+    value = struct.unpack("<f", struct.pack("<I", fp32_bits))[0]
+    assert verifier._bf16_rne_bits(value) == bf16_bits
+
+
+@pytest.mark.parametrize("value", [math.inf, -math.inf, math.nan, 2.0**128, (2.0 - 2**-23) * 2**127])
+def test_nonfinite_or_overflow_oracle_values_fail_closed(value):
+    with pytest.raises(ValueError):
+        _verifier()._bf16_rne_bits(value)
+
+
+def test_fp32_cancellation_uses_frozen_association_before_bf16():
+    verifier = _verifier()
+    # The first pair loses the small addend, and the second pair cancels
+    # the large value. A binary64 algebraic result would incorrectly be 0.5.
+    observed = verifier._regular_hadamard([2**24, 1, -(2**24), 0], 4)
+    assert observed[0] == 0.0
+    assert verifier._bf16_rne_bits(observed[0]) == 0
+    assert verifier._fp32(2**-149) == 2**-149
+    assert verifier._fp32(2**-150) == 0.0
+
+
+def test_exact_oracle_matches_actual_cpu_backend_multiblock_nondyadic_scales(monkeypatch):
+    pytest.importorskip("torch")
+    from comfy_omni.conversion.numerics.serialization import torch_convrot_bf16_block
+
+    monkeypatch.setenv("COMFY_OMNI_CONVROT_DEVICE", "cpu")
+    verifier = _verifier()
+    rows, columns, group = 5, 512, 256
+    # Stored F32 values use decimal significands, cancellation, BF16 ties,
+    # and the smallest positive F32 subnormal, without random input.
+    scales = struct.pack("<5f", 0.001, 0.1, 1.234567, 1.00390625, 2**-149)
+    factors = struct.unpack("<5f", scales)
+    qvalues = [((row * 19 + column * 37) % 256) - 128 for row in range(rows) for column in range(columns)]
+    for column in range(columns):
+        qvalues[3 * columns + column] = 1  # Exact midpoint case after four stages.
+    raw = struct.pack(f"<{len(qvalues)}b", *qvalues)
+    actual = torch_convrot_bf16_block(raw, scales, rows=rows, columns=columns, group_size=group)
+    expected = bytearray()
+    for row, factor in enumerate(factors):
+        decoded = verifier._regular_hadamard(
+            [verifier._fp32(value * factor) for value in qvalues[row * columns : (row + 1) * columns]], group
+        )
+        expected.extend(b"".join(struct.pack("<H", verifier._bf16_rne_bits(value)) for value in decoded))
+    assert actual == bytes(expected)
 
 
 def test_failed_receipt_sync_leaves_no_success_and_redacts_paths(tmp_path, monkeypatch, capsys):

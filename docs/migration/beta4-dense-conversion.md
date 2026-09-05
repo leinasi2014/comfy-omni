@@ -31,8 +31,15 @@ inventory. Header observations are not fresh full-file identity verification.
 The standalone verifier derives from this repository at
 `0925862033b0a9fdf48935ce538f364bbc317e2d`,
 `scripts/acceptance/verify_ref2va_full_conversion.py` blob
-`1e9056553b969366426b3c7dc6ad30b61ff43fc9` (Apache-2.0). Its scalar oracle is retained,
-with independent beta4 pins and held-file verification added. It imports no converter module.
+`1e9056553b969366426b3c7dc6ad30b61ff43fc9` (Apache-2.0), with independent beta4 pins and
+held-file verification added. Its numeric acceptance uses an independent scalar implementation
+of the frozen FP32 operation order and BF16 round-to-nearest, ties-to-even serialization. The
+operation-order sources are this repository at `47620807c779bbbf751542e936a4facd031e6cd2`:
+`conversion/numerics/torch_backend.py` blob `5bae7d787d42c4346c36d3cb8f67841207495e37` and
+`conversion/numerics/serialization.py` blob `fe8bf0faa7e61b77b87420d69ab3e6067293faa9`, under
+`src/comfy_omni` (Apache-2.0). The verifier imports no converter or Torch module. Separate
+Kronecker-basis characterization checks the mathematical transform, and CPU Torch tests check
+the serialization contract. A broad absolute-error threshold cannot authorize small weights.
 
 ## Conversion and output contract
 
@@ -68,7 +75,8 @@ Sources and older artifacts are never deleted to make space.
 The independent verifier checks complete file identities and descriptor coverage, every raw-copy
 byte and both full QKV reorderings. It checks each of the 200 converted matrices with independently
 computed first/middle/last rows, covering every column and each 256-column block; its receipt
-reports numerical sampling and errors explicitly. Sampling is not an all-element numerical proof.
+requires exact BF16 sample bits and reports numerical sampling explicitly. Sampling is not an
+all-element numerical proof.
 An optional full numerical audit would require another streaming pass and a measured CPU budget.
 
 Synthetic gates establish contract rejection, plan reconstruction, budget enforcement and the

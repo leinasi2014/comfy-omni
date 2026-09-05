@@ -4,9 +4,15 @@
 Derived from ComfyOmni@0925862033b0a9fdf48935ce538f364bbc317e2d,
 scripts/acceptance/verify_ref2va_full_conversion.py blob
 1e9056553b969366426b3c7dc6ad30b61ff43fc9 (Apache-2.0).
-The scalar normalized regular-Hadamard oracle is retained. Beta4 authority
-and held-file transactions are new. Numerical checks sample three rows per
-ConvRot matrix with explicit tolerance; they do not prove all numeric bytes.
+The regular-Hadamard algebra is retained. The FP32 association order is
+specified by ComfyOmni@47620807c779bbbf751542e936a4facd031e6cd2,
+src/comfy_omni/conversion/numerics/torch_backend.py blob
+5bae7d787d42c4346c36d3cb8f67841207495e37 and serialization.py blob
+fe8bf0faa7e61b77b87420d69ab3e6067293faa9 (Apache-2.0). This independent
+stdlib oracle rounds each scalar operation to FP32 and implements BF16
+round-to-nearest, ties-to-even. It imports no producer/backend code.
+Numerical checks require identical BF16 bits on three sampled rows per
+ConvRot matrix; they do not prove all numeric bytes.
 """
 
 from __future__ import annotations
@@ -52,7 +58,6 @@ HASH_CHUNK = 8 * 1024 * 1024
 MAX_DOCUMENT_BYTES = 64 * 1024 * 1024
 MAX_SHARD_BYTES = 4 * 1024**3
 DTYPE_BYTES = {"BF16": 2, "I8": 1, "F32": 4, "U8": 1}
-REL_TOL, ABS_TOL = 0.02, 0.05
 
 
 def _require(condition, detail):
@@ -269,9 +274,35 @@ def _qkv_indices(layout):
     return tuple(inverse)
 
 
+def _fp32(value):
+    """Round one finite primitive to IEEE binary32, including subnormals.
+
+    Binary64 represents every binary32 exactly and every binary32 * I8
+    product exactly (at most 31 significant bits). For binary32 addition
+    and subtraction, close exponents fit in binary64 exactly; a gap too
+    wide to fit cannot move the result to a binary32 rounding midpoint.
+    Multiplication by 0.5 is exact before this explicit binary32 rounding.
+    Thus these restricted primitives incur no binary64 double-rounding.
+    """
+    _require(math.isfinite(value), "non-finite FP32 oracle intermediate")
+    try:
+        return struct.unpack("<f", struct.pack("<f", value))[0]
+    except OverflowError as exc:
+        raise ValueError("FP32 oracle overflow") from exc
+
+
+def _bf16_rne_bits(value):
+    """IEEE BF16 nearest/even rounding of a binary32 bit pattern."""
+    bits = struct.unpack("<I", struct.pack("<f", _fp32(value)))[0]
+    rounded = (bits + 0x7FFF + ((bits >> 16) & 1)) >> 16
+    _require(rounded & 0x7F80 != 0x7F80, "non-finite BF16 oracle result")
+    return rounded
+
+
 def _regular_hadamard(values, group_size):
+    """Scalar FP32 evaluation of the pinned base-four association order."""
     _require(group_size in {4, 16, 64, 256} and len(values) % group_size == 0, "unsupported inverse group")
-    output = list(values)
+    output = [_fp32(value) for value in values]
     for group in range(0, len(output), group_size):
         stride = 1
         while stride < group_size:
@@ -280,7 +311,8 @@ def _regular_hadamard(values, group_size):
                 for offset in range(stride):
                     indexes = tuple(block + offset + lane * stride for lane in range(4))
                     a, b, c, d = (output[index] for index in indexes)
-                    values = ((a + b + c - d) / 2, (a + b - c + d) / 2, (a - b + c + d) / 2, (-a + b + c + d) / 2)
+                    ab, cd, ac, bd = _fp32(a + b), _fp32(c - d), _fp32(a - b), _fp32(c + d)
+                    values = tuple(_fp32(_fp32(value) * 0.5) for value in (ab + cd, ab - cd, ac + bd, bd - ac))
                     for index, value in zip(indexes, values, strict=True):
                         output[index] = value
             stride = width
@@ -395,21 +427,18 @@ def _semantics(source, records, source_offset, locations, actions, indices):
                 factor = struct.unpack("<f", source.read(source_offset + scale["start"] + source_row * 4, 4))[0]
                 _require(math.isfinite(factor) and factor > 0, "invalid sampled scale")
                 quantized = struct.unpack(f"<{columns}b", source.read(source_start + source_row * columns, columns))
-                expected = _regular_hadamard(tuple(value * factor for value in quantized), GROUP_SIZE)
+                expected = _regular_hadamard(tuple(_fp32(value * factor) for value in quantized), GROUP_SIZE)
                 raw = target.read(target_start + row * columns * 2, columns * 2)
-                actual = (
-                    struct.unpack("<f", struct.pack("<I", value << 16))[0] for (value,) in struct.iter_unpack("<H", raw)
-                )
-                for wanted, observed in zip(expected, actual, strict=True):
+                actual = (value for (value,) in struct.iter_unpack("<H", raw))
+                for wanted, observed_bits in zip(expected, actual, strict=True):
                     _require(
-                        math.isfinite(wanted)
-                        and math.isfinite(observed)
-                        and math.isclose(observed, wanted, rel_tol=REL_TOL, abs_tol=ABS_TOL),
+                        observed_bits == _bf16_rne_bits(wanted),
                         "ConvRot numerical sample differs",
                     )
+                    observed = struct.unpack("<f", struct.pack("<I", observed_bits << 16))[0]
                     absolute = abs(observed - wanted)
                     max_absolute = max(max_absolute, absolute)
-                    max_relative = max(max_relative, absolute / max(abs(wanted), 1e-12))
+                    max_relative = max(max_relative, absolute / abs(wanted) if wanted else 0.0)
                 sample_rows += 1
                 sample_elements += columns
             numeric_seconds += time.perf_counter() - numeric_started
@@ -432,9 +461,12 @@ def _semantics(source, records, source_offset, locations, actions, indices):
         ),
         "numerical_coverage": "deterministic-row-samples",
         "sample_row_policy": "sorted unique {0, rows//2, rows-1}, all columns, each ConvRot matrix",
-        "oracle": "independent scalar normalized regular-Hadamard; BF16 result tolerance",
-        "relative_tolerance": REL_TOL,
-        "absolute_tolerance": ABS_TOL,
+        "oracle": "independent scalar FP32 base-four regular-Hadamard; exact BF16 nearest/even bits",
+        "numeric_sample_bitwise": True,
+        "numeric_rounding_policy": (
+            "FP32 after each primitive; BF16 round-to-nearest, ties-to-even; "
+            "preserve signed zero/subnormals; reject overflow/non-finite"
+        ),
         "sample_max_absolute_error": max_absolute,
         "sample_max_relative_error": max_relative,
         "all_numeric_bitwise": False,
