@@ -11,6 +11,7 @@ from test_beta4_dense_conversion import beta4_report
 from test_native_export_transaction import _bound_plan, _tool, _write_fixture
 
 from comfy_omni.artifacts.safetensors_writer import TensorPayload, _header
+from comfy_omni.contracts.models import ContractError
 from comfy_omni.conversion.exporters.beta4 import build_beta4_dense_plan
 from comfy_omni.conversion.exporters.execution import execute_native_export
 
@@ -86,3 +87,27 @@ def test_failed_resource_callback_keeps_publication_absent_and_source_unchanged(
     assert len(observed) == 1
     assert not output.exists()
     assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("mutation", ["held-content", "replace-path"])
+def test_resource_callback_source_mutation_prevents_publication(tmp_path, mutation):
+    source, output = tmp_path / "source.safetensors", tmp_path / "output"
+    _write_fixture(source)
+    original = source.read_bytes()
+
+    def mutate_source(stage):
+        assert (stage / "export.plan.json").is_file()
+        assert not output.exists()
+        changed = original[:-1] + bytes([original[-1] ^ 1])
+        if mutation == "replace-path":
+            replacement = tmp_path / "replacement.safetensors"
+            replacement.write_bytes(changed)
+            replacement.replace(source)
+        else:
+            with source.open("r+b") as stream:
+                stream.seek(-1, 2)
+                stream.write(changed[-1:])
+
+    with pytest.raises(ContractError):
+        execute_native_export(_bound_plan(source), output, tool=_tool(), before_publication=mutate_source)
+    assert not output.exists()
