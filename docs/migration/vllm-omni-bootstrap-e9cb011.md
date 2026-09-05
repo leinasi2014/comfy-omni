@@ -4,6 +4,10 @@ Status: migrated bootstrap contract for issue
 [#10](https://github.com/leinasi2014/comfy-omni/issues/10) and pull request
 [#33](https://github.com/leinasi2014/comfy-omni/pull/33)
 
+This record describes the first bootstrap slice. The later
+[H3 component API contract](h3-component-api.md) adds the deferred API phase
+and resolves both architecture keys through the verified runtime dispatcher.
+
 ## Source authority
 
 | Field | Value |
