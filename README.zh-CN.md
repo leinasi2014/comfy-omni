@@ -43,16 +43,16 @@ import package 应当是合法标识符。GitHub 可能把只有一个子目录�
 <!-- README_SYNC: status -->
 ## 项目状态
 
-**早期重构／walking skeleton 阶段。** 当前仓库已经具备可安装的 distribution 元数据、轻量包导入、
-严格且只读 metadata 的 checkpoint 检查、一个摘要固定的文本编码器规范化命令，以及首个不可变原生
-源合同工作流（`scan`、`draft`、人工复核 `pin` 和显式 `list`）。合同草稿与快照会绑定源文件、census、
-模板、工具、复核者和证据摘要，不依赖可变注册表状态。插件入口仍为空且保持幂等。目前尚未迁移通用
-转换流水线、HTTP API、运行时架构或宿主 patch；这些离线制品操作不能作为生产运行时或广泛兼容性
-声明使用。
+**Pre-alpha 迁移阶段。** 当前仓库包含轻量包／插件注册、严格 checkpoint 检查、固定文本编码器
+规范化、不可变源合同、有界离线 ConvRot 导出，以及原生包组装和验证。H3 集成还包含面向明确审计的
+`h3-forge@e9cb011` v3 配方的[曲线缓存兼容适配器](docs/migration/h3-cache-runtime-e9cb011.md)，
+与现有 native v3 布局并存。适配器保留旧制品和 wire 标识，并区分制品生产者与当前执行的
+ComfyOmni wheel 身份。
 
-除已审计的 inspection、文本编码器规范化和原生源合同切片外，现有 H3 实现暂时保留在旧工作区；代码
-只有在完成来源、许可证、合同、测试和模块归属审计后才会迁移。摘要固定的服务器测试模型集现已冻结，
-外部资产正在准备；在取得对应运行时证据前，当前候选仍不能视为已验收或可发布。
+各项能力分别需要代表性的真实宿主验收。当前验收与发布决定位于
+[运行时 Issue](https://github.com/leinasi2014/comfy-omni/issues/11) 和
+[项目 Epic](https://github.com/leinasi2014/comfy-omni/issues/4)。HTTP API 迁移、其他运行时 profile、
+LoRA 生命周期和完整 DiT 热切换仍是独立工作；当前候选不声明广泛运行时兼容或预览版整体完成。
 
 <!-- README_SYNC: goals -->
 ## 设计目标
