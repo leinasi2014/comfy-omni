@@ -154,6 +154,20 @@ def _content_sha256(array: Any, np: Any, *, chunk_axis: int) -> str:
     return digest.hexdigest()
 
 
+def _thumbnail_pixels(frame: Any, np: Any) -> Any:
+    """Return an RGB uint8 thumbnail input without changing generation pixels."""
+    pixels = np.asarray(frame)
+    if pixels.ndim != 3 or pixels.shape[-1] != 3:
+        raise RuntimeError(f"thumbnail frame must be HWC RGB, got {pixels.shape}")
+    if pixels.dtype == np.uint8:
+        return np.ascontiguousarray(pixels)
+    if not np.issubdtype(pixels.dtype, np.floating):
+        raise RuntimeError(f"thumbnail frame dtype must be uint8 or floating RGB, got {pixels.dtype}")
+    if not np.isfinite(pixels).all():
+        raise RuntimeError("thumbnail frame contains non-finite values")
+    return np.rint(np.clip(pixels, 0.0, 1.0) * 255.0).astype(np.uint8)
+
+
 def _assert_same_media(first: dict[str, object], second: dict[str, object], *, label: str) -> None:
     if any(first[name] != second[name] for name in ("frame_sha256", "audio_sha256")):
         raise RuntimeError(f"{label}: repeated A generation is not byte-identical; the receipt records both digests")
@@ -162,6 +176,25 @@ def _assert_same_media(first: dict[str, object], second: dict[str, object], *, l
 def _assert_changed_media(first: dict[str, object], second: dict[str, object]) -> None:
     if all(first[name] == second[name] for name in ("frame_sha256", "audio_sha256")):
         raise RuntimeError("B generation matches A in both media digests; raw selection effect was not observed")
+
+
+def _release_receipt(pre_release: dict[str, object], released: dict[str, object]) -> dict[str, int]:
+    """Require release to reclaim reported H3 storage without calling it a TP total."""
+    required = ("device_weight_bytes", "cpu_weight_bytes", "resident_weight_bytes", "cuda_memory_allocated_bytes")
+    if any(type(pre_release.get(key)) is not int or type(released.get(key)) is not int for key in required):
+        raise RuntimeError("residency status is missing integer release-memory evidence")
+    nonzero = {key: released[key] for key in required[:3] if released[key] != 0}
+    if nonzero:
+        raise RuntimeError(f"release unload retained H3 weight bytes: {nonzero}")
+    expected = pre_release["device_weight_bytes"]
+    observed = pre_release["cuda_memory_allocated_bytes"] - released["cuda_memory_allocated_bytes"]
+    tolerance = 16 * 1024 * 1024
+    if observed < expected - tolerance:
+        raise RuntimeError(
+            "release unload did not reclaim reported device weight storage: "
+            f"allocated_drop={observed}, reported_device_weights={expected}, tolerance={tolerance}"
+        )
+    return {"allocated_drop_bytes": observed, "reported_device_weight_bytes": expected, "tolerance_bytes": tolerance}
 
 
 async def _generate(engine: Any, args: argparse.Namespace, output: Path, label: str) -> dict[str, object]:
@@ -213,7 +246,7 @@ async def _generate(engine: Any, args: argparse.Namespace, output: Path, label: 
     thumbnail = output / f"{label}-frame0.png"
     from PIL import Image
 
-    Image.fromarray(frames[0]).resize((216, 120)).save(thumbnail)
+    Image.fromarray(_thumbnail_pixels(frames[0], np)).resize((216, 120)).save(thumbnail)
     return {
         "label": label,
         "frame_shape": list(frames.shape),
@@ -234,6 +267,7 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
     engine = None
     record: dict[str, object] = {
         "schema": "comfy-omni.h3-raw-runtime/v1",
+        "control_pid": os.getpid(),
         "stage": args.stage,
         "inputs": {
             "components": _path_receipt(args.component_root),
@@ -291,8 +325,8 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
         record["events"].append({"phase": phase, "status": status_b, "identity": identity_b})
         phase = "forward-b"
         b_media = await _generate(engine, args, output, "b")
-        _assert_changed_media(a_initial, b_media)
         record["events"].append({"phase": phase, "media": b_media})
+        _assert_changed_media(a_initial, b_media)
 
         phase = "switch-a"
         record["events"].append({"phase": phase, "switch": await coordinator.switch("a")})
@@ -305,17 +339,22 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
         record["events"].append({"phase": phase, "status": restored, "identity": identity_restored})
         phase = "forward-a-restored"
         a_restored = await _generate(engine, args, output, "a-restored")
-        _assert_same_media(a_initial, a_restored, label="A→B→A")
         record["events"].append({"phase": phase, "media": a_restored})
+        _assert_same_media(a_initial, a_restored, label="A→B→A")
         if args.stage == "aba":
             record["status"] = "ABA_COMPLETED"
             return record
 
+        phase = "pre-release-status"
+        pre_release = await coordinator.status()
+        record["events"].append({"phase": phase, "status": pre_release})
         phase = "unload-release"
         released = await coordinator.unload(mode="release")
         if released["weight_residency"] != "released":
             raise RuntimeError(f"release unload did not release weights: {released}")
-        record["events"].append({"phase": phase, "status": released})
+        release_event = {"phase": phase, "status": released}
+        record["events"].append(release_event)
+        release_event["reclaim"] = _release_receipt(pre_release, released)
         phase = "reload"
         reloaded = await coordinator.load()
         if reloaded["weight_residency"] != "loaded":
@@ -325,8 +364,8 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
         record["events"].append({"phase": phase, "status": reloaded, "identity": identity_reloaded})
         phase = "forward-a-reloaded"
         a_reloaded = await _generate(engine, args, output, "a-reloaded")
-        _assert_same_media(a_initial, a_reloaded, label="A release/load")
         record["events"].append({"phase": phase, "media": a_reloaded})
+        _assert_same_media(a_initial, a_reloaded, label="A release/load")
         record["status"] = "FULL_COMPLETED"
         return record
     except BaseException as error:

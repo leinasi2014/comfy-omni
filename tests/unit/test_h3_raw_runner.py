@@ -65,3 +65,55 @@ def test_plugin_preflight_rejects_an_explicit_plugin_filter_without_comfy_omni(m
 
     with pytest.raises(RuntimeError, match="VLLM_PLUGINS"):
         runner._plugin_preflight()
+
+
+def test_thumbnail_pixels_converts_unit_interval_float32_rgb_without_mutating_the_frame():
+    np = pytest.importorskip("numpy")
+    runner = _runner_module()
+    frame = np.array([[[0.0, 0.5, 1.0]]], dtype=np.float32)
+
+    thumbnail = runner._thumbnail_pixels(frame, np)
+
+    assert thumbnail.dtype == np.uint8
+    assert thumbnail.tolist() == [[[0, 128, 255]]]
+    assert frame.dtype == np.float32 and frame.tolist() == [[[0.0, 0.5, 1.0]]]
+
+
+def test_release_receipt_requires_zero_resident_weight_bytes_and_a_weight_sized_allocation_drop():
+    runner = _runner_module()
+    before = {
+        "device_weight_bytes": 200 * 1024 * 1024,
+        "cpu_weight_bytes": 0,
+        "resident_weight_bytes": 200 * 1024 * 1024,
+        "cuda_memory_allocated_bytes": 600 * 1024 * 1024,
+    }
+    after = {
+        "device_weight_bytes": 0,
+        "cpu_weight_bytes": 0,
+        "resident_weight_bytes": 0,
+        "cuda_memory_allocated_bytes": 390 * 1024 * 1024,
+    }
+
+    receipt = runner._release_receipt(before, after)
+
+    assert receipt["allocated_drop_bytes"] == 210 * 1024 * 1024
+    assert receipt["reported_device_weight_bytes"] == before["device_weight_bytes"]
+
+
+def test_release_receipt_rejects_a_release_that_retains_weight_bytes():
+    runner = _runner_module()
+    before = {
+        "device_weight_bytes": 100,
+        "cpu_weight_bytes": 0,
+        "resident_weight_bytes": 100,
+        "cuda_memory_allocated_bytes": 1_000,
+    }
+    after = {
+        "device_weight_bytes": 1,
+        "cpu_weight_bytes": 0,
+        "resident_weight_bytes": 1,
+        "cuda_memory_allocated_bytes": 800,
+    }
+
+    with pytest.raises(RuntimeError, match="retained H3 weight bytes"):
+        runner._release_receipt(before, after)
