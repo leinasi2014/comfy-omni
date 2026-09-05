@@ -34,7 +34,7 @@ from comfy_omni.runtime.h3.beta4_binding import (
     verify_beta4_component,
 )
 
-MEMORY_LIMIT = 4 * 1024**3  # Per-rank host RAM budget; the container holds all TP ranks.
+MEMORY_LIMIT = 4 * 1024**3  # Container RAM ceiling is 4 GiB for TP1 and 8 GiB for TP2.
 HOST_COMMIT = "17285c2f55a41bf15772676121814d59a60ace35"
 SCHEMA = "comfy_omni.beta4.host_acceptance/v1"
 COMPARISON_POLICY = {"status": "UNFROZEN", "automatic_pass": False, "legacy_bitwise_claim": False}
@@ -106,9 +106,11 @@ def _memory(tp):
             for key, name in (("current_bytes", current), ("peak_bytes", peak)):
                 observed = root / name
                 values[key] = int(observed.read_text().strip()) if observed.is_file() else None
+            # Rank RSS can count shared mmap pages in each worker; the cgroup
+            # enforces the physical memory budget for the whole container.
             _require(
-                values["max_rss_bytes"] <= min(int(raw), MEMORY_LIMIT),
-                "process RSS exceeds the per-rank acceptance limit",
+                values["max_rss_bytes"] <= int(raw),
+                "process RSS exceeds the actual container memory limit",
             )
             return values
     raise ValueError(f"acceptance requires an enforced container memory limit of at most {4 * tp} GiB for TP{tp}")

@@ -72,12 +72,15 @@ def test_tp2_with_eight_gib_container_reaches_gpu_stage_without_loading_a_model(
 
 
 @pytest.mark.parametrize("version", [1, 2])
-@pytest.mark.parametrize("tp,gib", [(1, 2), (1, 4), (2, 4), (2, 8)])
-def test_memory_observation_records_actual_limit_without_inventing_the_maximum(tmp_path, monkeypatch, version, tp, gib):
+@pytest.mark.parametrize("tp,gib,rss_gib", [(1, 2, 1), (1, 4, 4), (2, 4, 4), (2, 8, 5)])
+def test_memory_observation_records_actual_limit_without_inventing_the_maximum(
+    tmp_path, monkeypatch, version, tp, gib, rss_gib
+):
     _cgroup(tmp_path, monkeypatch, version=version, limit=gib * 1024**3)
+    monkeypatch.setattr(acceptance.resource, "getrusage", lambda _: SimpleNamespace(ru_maxrss=rss_gib * 1024**2))
     assert acceptance._memory(tp) == {
         "limit_bytes": gib * 1024**3,
-        "max_rss_bytes": 1024**3,
+        "max_rss_bytes": rss_gib * 1024**3,
         "current_bytes": 1024**3,
         "peak_bytes": 2 * 1024**3,
     }
@@ -93,11 +96,13 @@ def test_memory_gate_rejects_unlimited_or_over_budget_containers(tmp_path, monke
         acceptance._memory(tp)
 
 
-@pytest.mark.parametrize("tp,limit,rss", [(1, 2 * 1024**3, 2 * 1024**3 + 1024), (2, 8 * 1024**3, 4 * 1024**3 + 1024)])
-def test_memory_gate_keeps_the_individual_rank_rss_bounded(tmp_path, monkeypatch, tp, limit, rss):
+@pytest.mark.parametrize("tp,limit,rss", [(1, 2 * 1024**3, 2 * 1024**3 + 1024), (2, 8 * 1024**3, 8 * 1024**3 + 1024)])
+def test_memory_gate_keeps_the_individual_rank_rss_within_the_actual_container_limit(
+    tmp_path, monkeypatch, tp, limit, rss
+):
     _cgroup(tmp_path, monkeypatch, version=2, limit=limit)
     monkeypatch.setattr(acceptance.resource, "getrusage", lambda _: SimpleNamespace(ru_maxrss=rss // 1024))
-    with pytest.raises(ValueError, match="process RSS exceeds the per-rank acceptance limit"):
+    with pytest.raises(ValueError, match="process RSS exceeds"):
         acceptance._memory(tp)
 
 
