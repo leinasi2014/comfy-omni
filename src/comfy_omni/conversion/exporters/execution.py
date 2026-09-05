@@ -487,8 +487,7 @@ def execute_native_export(
             manifest["source_contract"] = snapshot_record
         if before_publication is not None:
             before_publication(stage.path)
-        sources.verify_unchanged()
-        return publish_native_export(stage, tuple(staged), manifest)
+        return publish_native_export(stage, tuple(staged), manifest, before_manifest=sources.verify_unchanged)
 
 
 __all__ = [

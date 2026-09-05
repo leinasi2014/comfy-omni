@@ -9,7 +9,7 @@ description = "Bring Comfy checkpoints to native Omni runtimes."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "third_party/comfy-kitchen/LICENSE", "third_party/comfy-kitchen/NOTICE"]
 authors = [{ name = "ComfyOmni contributors" }]
 keywords = ["comfyui", "checkpoint", "conversion", "omni", "vllm"]
 classifiers = [
