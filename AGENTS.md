@@ -17,6 +17,16 @@ evidence are migration inputs, not part of this Git root unless a reviewed chang
 - Executable behavior follows a frozen contract and RED -> GREEN -> REFACTOR. Preserve the failing
   RED observation and bind later evidence to the exact candidate.
 
+## Parallel worktree location
+
+- Create parallel Git worktrees only in this plugin's `.worktrees/<task>` directory. Do not create
+  sibling development checkouts under `plugins/` or in the system temporary directory.
+- Keep `.worktrees/` excluded from Git and Docker build contexts. Read-only investigation does not
+  need a new worktree.
+- The coordinator owns creation, relocation and cleanup. Pause affected writers before moving a
+  worktree, preserve branches and uncommitted files, verify Git identity and status afterwards, and
+  update active scripts and agent assignments to the new path.
+
 ## Required reading
 
 - All work: [docs/development/docker-first.md](docs/development/docker-first.md).
