@@ -58,3 +58,32 @@ def test_final_check_cannot_redirect_manifest_into_foreign_directory(tmp_path, r
         publish_native_export(stage, (artifact,), {"schema": "synthetic/v1"}, before_manifest=replace_directory)
     assert {path.name for path in output.iterdir()} == {"foreign.txt"}
     assert (output / "foreign.txt").read_bytes() == b"untouched"
+
+
+@pytest.mark.parametrize("change", ["in-place", "replacement", "extra"])
+def test_final_check_rejects_changed_or_added_published_file(tmp_path, change):
+    output = tmp_path / "output"
+    stage = prepare_native_export(output)
+    artifact = stage_document(stage, "config.json", b'{"value":1}\n', kind="config")
+
+    def tamper_after_hash():
+        path = output / "config.json"
+        if change == "in-place":
+            path.chmod(0o600)
+            path.write_bytes(b'{"value":2}\n')
+        elif change == "replacement":
+            path.unlink()
+            path.write_bytes(b'{"value":2}\n')
+        else:
+            (output / "foreign.txt").write_bytes(b"untouched")
+
+    with pytest.raises(ContractError, match="published.*changed"):
+        publish_native_export(stage, (artifact,), {"schema": "synthetic/v1"}, before_manifest=tamper_after_hash)
+    if change == "in-place":
+        assert not output.exists()
+    elif change == "replacement":
+        assert {path.name for path in output.iterdir()} == {"config.json"}
+        assert (output / "config.json").read_bytes() == b'{"value":2}\n'
+    else:
+        assert {path.name for path in output.iterdir()} == {"foreign.txt"}
+        assert (output / "foreign.txt").read_bytes() == b"untouched"
