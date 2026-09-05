@@ -284,7 +284,7 @@ def _gpu_host(args, rank, local, architecture):
             sequence_parallel_size=1,
             use_hsdp=False,
         ),
-        diffusion_attention_config={"default": "sdpa"},
+        diffusion_attention_config={"default": "TORCH_SDPA"},
         quantization_config=None,
         enable_cpu_offload=False,
         enable_layerwise_offload=False,
