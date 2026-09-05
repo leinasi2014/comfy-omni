@@ -49,6 +49,13 @@ def test_runtime_video_configuration_is_bound_to_the_selected_payload() -> None:
     )
     assert derived["runtime_payload_sha256"] == harness.SINGLE_PAYLOAD_SHA256["video_vae"][1]
     assert derived["source_payload_sha256"] == "7c1f131492e7eddacaac9069a61b81bdd39de5cc96561e677c5eab1cdce5e522"
+    assert derived["statistics_source"] == "upstream-wrapper-config"
+    assert derived["architecture_source"] == {
+        "file": "source/config.json",
+        "bytes": 1164,
+        "sha256": "66c68f541e6578ce613ce7a0fc985eb59097038829e49f7535e6d08e6d95ab12",
+    }
+    assert derived["overrides"]["source_safetensors_path"] == harness.SINGLE_PAYLOAD_SHA256["video_vae"][0]
 
 
 def _small_component(harness, tmp_path, monkeypatch):

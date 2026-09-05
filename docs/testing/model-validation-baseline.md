@@ -60,10 +60,14 @@ SHA256，以及 JSON 中的 header/索引/尾部摘要。strict reader 在结构
 `latents_mean`、`latents_std` 两个统计张量；这是宿主参数布局差异，不是 safetensors 格式损坏。
 运行时选用单独的 560 参数派生物：5,207,806,104 字节，SHA256 为
 `5a624684fad53d4acd0762aa7b07de4204de0bbb90f92c479605e326ccceb148`。
-统计值由对应配置承载：2,906 字节，SHA256 为
+运行时保留上游包装配置中的 24 维高精度统计值，不把原始权重内的 FP16 统计快照当作它的精确来源。
+派生配置为 2,906 字节，SHA256 为
 `5d1163e8fb4030f3c927714611335840a6e500071cdf5d75ea9c13fccf9f5abc`。
 `e4-component-configs.v1.json` 的 `files` 保留上游文件身份，`runtime_derivations`
-单独绑定这份派生配置及其原始来源；组包使用派生配置与原有动态代码组成的精确名单。
+单独绑定这份派生配置及其两个原始来源：1,807 字节的上游包装配置，以及 1,164 字节、SHA256 为
+`66c68f541e6578ce613ce7a0fc985eb59097038829e49f7535e6d08e6d95ab12` 的 `source/config.json`。
+先合并架构与包装配置，再应用该清单声明的三个字段覆盖，按 `indent=2` 加末尾换行序列化，
+即可逐字节重建选定配置；组包使用派生配置与原有动态代码组成的精确名单。
 `staging_policy` 记录原始与派生身份；组包验收只接受派生 payload 及其精确配套文件，
 不能把派生摘要写回上游源文件身份，也不能忽略额外参数后声称加载成功。
 
@@ -105,8 +109,8 @@ payload，音频 VAE 使用表中摘要固定的 ModelScope 官方 `Ref2VA/audio
 `MiniMax/MiniMax-H3@master` 的 `Ref2VA/` 分区（与 Hugging Face `MiniMaxAI/MiniMax-H3` 同源），
 逐文件 SHA256 记录于 [e4-component-configs.v1.json](e4-component-configs.v1.json)（29 文件、
 178,766 字节：text_encoder 1、video_vae 16、audio_vae 12）。VAE `config.json` 的
-`latent_channels/latents_mean/latents_std` 后续按转换后负载实测派生修订（legacy 先例：从实际
-payload 张量派生统计）。下载仅在指定验证主机的 Docker 容器内经魔塔国内直连执行。
+潜变量通道和统计由所选配置来源及精确派生记录绑定，不能在组包时猜测或替换；视频 VAE 的
+架构合并、路径调整和统计来源见第 2.2 节。下载仅在指定验证主机的 Docker 容器内经魔塔国内直连执行。
 
 ## 3. 验收场景
 
