@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import logging
+import os
 from math import prod
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -38,6 +40,7 @@ _PACKAGE_BINDING: Beta4ComponentBinding | RawBeta4Binding | None = None
 _BUFFERS = frozenset({"adaln_t_table", "adaln_basis", "adaln_mean", "rope.inv_freq"})
 _FP32_HEADS = ("video_patch_proj.", "audio_patch_proj.", "final_layer.video_out.", "final_layer.audio_out.")
 _AUXILIARY_BUFFERS = frozenset({"adaln_basis", "adaln_mean"})
+_LOG = logging.getLogger(__name__)
 
 
 def _verify_binding_unchanged(binding):
@@ -290,6 +293,48 @@ class H3Beta4DiTModel(official.MiniMaxH3DiTModel):
         return super().forward(**kwargs)
 
 
+def _raw_audio_vae_type(base_type):
+    def tensor_sha256(tensor):
+        payload = tensor.detach().contiguous().cpu().view(torch.uint8).numpy()
+        return hashlib.sha256(payload).hexdigest()
+
+    class _RawDeterministicAudioVAE(base_type):
+        _comfy_omni_raw_deterministic_decode = True
+
+        def decode_latent(self, latent):
+            trace = os.environ.get("COMFY_OMNI_H3_AUDIO_TRACE") == "1"
+            if trace:
+                latent_sha256 = tensor_sha256(latent)
+            cudnn = torch.backends.cudnn
+            with cudnn.flags(
+                enabled=cudnn.enabled,
+                allow_tf32=cudnn.allow_tf32,
+                benchmark=False,
+                deterministic=True,
+            ):
+                waveform = super().decode_latent(latent)
+            if trace:
+                _LOG.info(
+                    "ComfyOmni raw H3 audio decode worker_pid=%d latent_shape=%s latent_dtype=%s "
+                    "latent_sha256=%s waveform_sha256=%s",
+                    os.getpid(),
+                    tuple(latent.shape),
+                    latent.dtype,
+                    latent_sha256,
+                    tensor_sha256(waveform),
+                )
+            return waveform
+
+    return _RawDeterministicAudioVAE
+
+
+def _pipeline_construction_replacements(*, raw_binding):
+    replacements = {"MiniMaxH3DiTModel": H3Beta4DiTModel}
+    if raw_binding is not None:
+        replacements["MiniMaxH3AudioVAE"] = _raw_audio_vae_type(pipeline.MiniMaxH3AudioVAE)
+    return replacements
+
+
 class H3Beta4Pipeline(pipeline.MiniMaxH3Pipeline):
     def __init__(self, *, od_config, package=None, raw_binding=None, raw_selection="initial", prefix=""):
         global _PACKAGE_BINDING
@@ -333,7 +378,7 @@ class H3Beta4Pipeline(pipeline.MiniMaxH3Pipeline):
                     raise ValueError("beta4 native package requires its prepared Ref2VA serving view")
             _PACKAGE_BINDING = binding
             try:
-                with construction.substitute(pipeline, MiniMaxH3DiTModel=H3Beta4DiTModel):
+                with construction.substitute(pipeline, **_pipeline_construction_replacements(raw_binding=raw_binding)):
                     super().__init__(od_config=local, prefix=prefix)
             finally:
                 _PACKAGE_BINDING = None

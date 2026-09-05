@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
 from typing import Any
@@ -178,6 +179,29 @@ def _assert_changed_media(first: dict[str, object], second: dict[str, object]) -
         raise RuntimeError("B generation matches A in both media digests; raw selection effect was not observed")
 
 
+def _record_media_assertion(
+    record: dict[str, object],
+    failures: list[dict[str, str]],
+    *,
+    phase: str,
+    assertion: Callable[[], None],
+) -> None:
+    """Defer only media-digest failures so full runs can collect release evidence."""
+    try:
+        assertion()
+    except RuntimeError as error:
+        failure = {"phase": phase, "error_type": type(error).__name__, "error": str(error)}
+        failures.append(failure)
+        record.setdefault("media_assertion_failures", []).append(failure)
+        record["events"].append({"phase": f"{phase}-media-check", "failure": failure})
+
+
+def _raise_media_failures(failures: list[dict[str, str]]) -> None:
+    if failures:
+        detail = "; ".join(f"{failure['phase']}: {failure['error']}" for failure in failures)
+        raise RuntimeError(f"raw H3 media acceptance failed after residency checks: {detail}")
+
+
 def _release_receipt(pre_release: dict[str, object], released: dict[str, object]) -> dict[str, int]:
     """Require release to reclaim reported H3 storage without calling it a TP total."""
     required = ("device_weight_bytes", "cpu_weight_bytes", "resident_weight_bytes", "cuda_memory_allocated_bytes")
@@ -265,6 +289,7 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
     started = monotonic()
     phase = "construct"
     engine = None
+    media_failures: list[dict[str, str]] = []
     record: dict[str, object] = {
         "schema": "comfy-omni.h3-raw-runtime/v1",
         "control_pid": os.getpid(),
@@ -326,7 +351,12 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
         phase = "forward-b"
         b_media = await _generate(engine, args, output, "b")
         record["events"].append({"phase": phase, "media": b_media})
-        _assert_changed_media(a_initial, b_media)
+        _record_media_assertion(
+            record,
+            media_failures,
+            phase=phase,
+            assertion=lambda: _assert_changed_media(a_initial, b_media),
+        )
 
         phase = "switch-a"
         record["events"].append({"phase": phase, "switch": await coordinator.switch("a")})
@@ -340,8 +370,15 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
         phase = "forward-a-restored"
         a_restored = await _generate(engine, args, output, "a-restored")
         record["events"].append({"phase": phase, "media": a_restored})
-        _assert_same_media(a_initial, a_restored, label="A→B→A")
+        _record_media_assertion(
+            record,
+            media_failures,
+            phase=phase,
+            assertion=lambda: _assert_same_media(a_initial, a_restored, label="A→B→A"),
+        )
         if args.stage == "aba":
+            phase = "media-verification"
+            _raise_media_failures(media_failures)
             record["status"] = "ABA_COMPLETED"
             return record
 
@@ -365,7 +402,14 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
         phase = "forward-a-reloaded"
         a_reloaded = await _generate(engine, args, output, "a-reloaded")
         record["events"].append({"phase": phase, "media": a_reloaded})
-        _assert_same_media(a_initial, a_reloaded, label="A release/load")
+        _record_media_assertion(
+            record,
+            media_failures,
+            phase=phase,
+            assertion=lambda: _assert_same_media(a_initial, a_reloaded, label="A release/load"),
+        )
+        phase = "media-verification"
+        _raise_media_failures(media_failures)
         record["status"] = "FULL_COMPLETED"
         return record
     except BaseException as error:
