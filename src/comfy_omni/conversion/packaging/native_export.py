@@ -11,6 +11,7 @@ import hashlib
 import os
 import stat
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -110,6 +111,8 @@ def publish_native_export(
     stage: NativeExportStage,
     artifacts: tuple[StagedArtifact, ...],
     unsigned_manifest: dict[str, Any],
+    *,
+    before_manifest: Callable[[], None] | None = None,
 ) -> NativeExportPublication:
     """Publish verified artifacts without overwrite, then write the receipt last."""
 
@@ -134,10 +137,57 @@ def publish_native_export(
         current = stage.output_dir.lstat()
         if (current.st_dev, current.st_ino) != output_identity:
             raise ContractError("output directory identity changed during publication")
+        published_identities = {}
         for artifact in artifacts:
-            digest, size = fileops.sha256_file_pinned(stage.output_dir / artifact.name)
+            target = stage.output_dir / artifact.name
+            before = fileops.fd_identity(target.lstat()) if before_manifest is not None else None
+            digest, size = fileops.sha256_file_pinned(target)
             if (digest, size) != (artifact.sha256, artifact.size):
                 raise ContractError(f"published artifact verification failed: {artifact.name}")
+            if before_manifest is not None:
+                after = fileops.fd_identity(target.lstat())
+                if before != after:
+                    raise ContractError("published artifact changed during output verification")
+                published_identities[artifact.name] = after
+        if before_manifest is not None:
+            try:
+                before_manifest()
+                # The final input reread can be long. It must not redirect the
+                # commit marker into a replacement output or parent directory.
+                parent_status = stage.parent.lstat()
+                current = stage.output_dir.lstat()
+                if (parent_status.st_dev, parent_status.st_ino) != stage.parent_identity or (
+                    current.st_dev,
+                    current.st_ino,
+                ) != output_identity:
+                    raise ContractError("output or parent directory identity changed during final input check")
+                if {path.name for path in stage.output_dir.iterdir()} != set(names):
+                    raise ContractError("published file census changed during final input check")
+                if any(
+                    fileops.fd_identity((stage.output_dir / name).lstat()) != identity
+                    for name, identity in published_identities.items()
+                ):
+                    raise ContractError("published artifact identity changed during final input check")
+            except BaseException:
+                # Remove only this call's exclusive directory and its own staged links.
+                # A foreign replacement must never be removed during failure cleanup.
+                try:
+                    current = stage.output_dir.lstat()
+                except FileNotFoundError:
+                    current = None
+                if current is not None and (current.st_dev, current.st_ino) == output_identity:
+                    for artifact in artifacts:
+                        target = stage.output_dir / artifact.name
+                        try:
+                            linked = target.lstat()
+                        except FileNotFoundError:
+                            continue
+                        if (linked.st_dev, linked.st_ino) == published_identities[artifact.name][:2]:
+                            target.unlink()
+                    if not any(stage.output_dir.iterdir()):
+                        stage.output_dir.rmdir()
+                    fileops.fsync_dir(stage.parent)
+                raise
         manifest_sha256 = hashlib.sha256(fileops.canonical_json(unsigned_manifest)).hexdigest()
         manifest = {**unsigned_manifest, "manifest_sha256": manifest_sha256}
         manifest_path = stage.output_dir / MANIFEST_NAME
