@@ -24,6 +24,7 @@ from typing import Any, NoReturn
 from comfy_omni.artifacts import fileops
 from comfy_omni.contracts.models import ContractError
 from comfy_omni.conversion.packaging.planning import PACKAGE_COMPONENTS
+from comfy_omni.runtime.h3.beta4_binding import Beta4ComponentBinding, optional_beta4_binding
 from comfy_omni.runtime.h3.package_binding import (
     CURVE_PROFILE,
     HOST_COMMIT,
@@ -128,11 +129,12 @@ class RuntimePackageContract:
     profile: str | None = None
     runtime_quantization_config: RuntimeQuantizationBinding | None = None
     curve_cache: CurveCacheBinding | None = None
+    beta4: Beta4ComponentBinding | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-ready binding record for this verified package."""
 
-        return {
+        result = {
             "status": "RUNTIME_VERIFIED",
             "package_root": self.package_root.as_posix(),
             "plan_content_sha256": self.plan_content_sha256,
@@ -171,6 +173,9 @@ class RuntimePackageContract:
             if self.curve_cache is not None
             else None,
         }
+        if self.beta4 is not None:
+            result["beta4"] = self.beta4.to_dict()
+        return result
 
 
 def _validate_legacy_runtime_package(root: Path, *, expected_class_name: str) -> RuntimePackageContract:
@@ -366,6 +371,10 @@ def validate_runtime_package(
         )
 
     components = tuple((component, *component_totals[component]) for component in PACKAGE_COMPONENTS)
+    try:
+        beta4 = optional_beta4_binding(root / "Ref2VA" / "transformer")
+    except (ContractError, fileops.FsopsError, OSError, ValueError, TypeError, KeyError) as exc:
+        _fail(str(exc), "beta4-component")
     return RuntimePackageContract(
         package_root=root,
         plan_content_sha256=manifest["plan_content_sha256"],
@@ -381,6 +390,7 @@ def validate_runtime_package(
         files_sha256=hashlib.sha256(fileops.canonical_json(files)).hexdigest(),
         component_paths={component: (root / "Ref2VA" / component).resolve() for component in PACKAGE_COMPONENTS},
         partition_path=root / "Ref2VA",
+        beta4=beta4,
     )
 
 

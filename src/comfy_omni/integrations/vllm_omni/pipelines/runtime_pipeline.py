@@ -29,6 +29,7 @@ from comfy_omni.integrations.vllm_omni.package_contract import (
     RuntimePackageContractError,
     validate_runtime_package,
 )
+from comfy_omni.integrations.vllm_omni.pipelines.scoped_construction import CONSTRUCTION_LOCK
 from comfy_omni.integrations.vllm_omni.serving import MARKER_NAME, SERVING_PARTITION_NAME
 
 
@@ -76,6 +77,14 @@ class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
             )
         package_root = _resolve_package_root(Path(model_path))
         package = validate_runtime_package(package_root)
+        if getattr(package, "beta4", None) is not None:
+            if getattr(package, "curve_cache", None) is not None:
+                raise RuntimePackageContractError(
+                    "runtime package binds competing DiT routes", evidence={"stage": "routing"}
+                )
+            from comfy_omni.integrations.vllm_omni.pipelines.beta4_pipeline import H3Beta4Pipeline
+
+            return H3Beta4Pipeline(od_config=od_config, package=package, prefix=prefix)
         if getattr(package, "curve_cache", None) is not None:
             from comfy_omni.integrations.vllm_omni.pipelines.cache_pipeline import H3CurveCachePipeline
 
@@ -85,7 +94,8 @@ class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
         return instance
 
     def __init__(self, *, od_config, prefix: str = "") -> None:
-        super().__init__(od_config=od_config, prefix=prefix)
+        with CONSTRUCTION_LOCK:
+            super().__init__(od_config=od_config, prefix=prefix)
 
 
 __all__ = ["H3ComfyMiniMaxH3Pipeline", "get_minimax_h3_post_process_func"]
