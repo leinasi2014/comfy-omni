@@ -8,6 +8,7 @@ import hashlib
 import json
 import resource
 import time
+from collections import Counter
 from pathlib import Path
 
 from comfy_omni.artifacts import fileops
@@ -135,6 +136,43 @@ def _tool(expected_commit: str, expected_wheel_sha256: str):
     return tool
 
 
+def _storage_identity(path: Path) -> dict[str, int]:
+    status = fileops.reject_linked_ancestors(path).lstat()
+    return {
+        key: getattr(status, f"st_{key}")
+        for key in ("dev", "ino", "size", "mtime_ns", "mode", "uid", "gid", "ctime_ns", "nlink")
+    }
+
+
+def _storage_evidence(plan, source_root: Path, output: Path, before: dict) -> dict:
+    increments = Counter((entry["dev"], entry["ino"]) for entry in before.values())
+    records = []
+    for item in plan.files:
+        source_path = f"{item.component}/{item.source_path}"
+        original = before[item.target_path]
+        current = _storage_identity(source_root / source_path)
+        target = _storage_identity(output / item.target_path)
+        if original["mode"] & 0o222 or any(
+            current[key] != original[key] for key in ("dev", "ino", "size", "mtime_ns", "mode", "uid", "gid")
+        ):
+            _fail(f"shared source payload or metadata changed: {source_path}")
+        if current["nlink"] != original["nlink"] + increments[(original["dev"], original["ino"])]:
+            _fail(f"source link count differs from planned links: {source_path}")
+        if target != current:
+            _fail(f"published file does not share the verified source inode: {item.target_path}")
+        records.append(
+            {"source_path": source_path, "target_path": item.target_path, "before": original, "after": current}
+        )
+    return {
+        "mode": "immutable-reuse/v1",
+        "source_root": source_root.as_posix(),
+        "shared_bytes": TOTAL_BYTES,
+        "copied_bytes": 0,
+        "max_copy_bytes": 0,
+        "files": records,
+    }
+
+
 def _receipt(component: str, source: Path, tool):
     started = time.monotonic()
     receipt = parse_component_receipt(component, source, tool)
@@ -182,6 +220,9 @@ def main() -> int:
     parser.add_argument("--expect-commit", required=True)
     parser.add_argument("--expect-wheel-sha256", required=True)
     parser.add_argument("--result-out", type=Path, required=True)
+    parser.add_argument(
+        "--reuse-immutable", action="store_true", help="Require all files to share storage; copy budget is zero"
+    )
     args = parser.parse_args()
 
     root = args.components_root.resolve(strict=True)
@@ -213,7 +254,16 @@ def main() -> int:
     if verification.total_bytes != TOTAL_BYTES or verification.plan_content_sha256 != plan.content_sha256:
         _fail("source verification totals drifted")
 
-    materialization = materialize_package(plan, args.output)
+    before = {}
+    if args.reuse_immutable:
+        before = {item.target_path: _storage_identity(root / item.component / item.source_path) for item in plan.files}
+    materialization = (
+        materialize_package(plan, args.output, reuse_immutable=True, max_copy_bytes=0)
+        if args.reuse_immutable
+        else materialize_package(plan, args.output)
+    )
+    if args.reuse_immutable and materialization.shared_bytes != TOTAL_BYTES:
+        _fail("immutable materialization copied payload bytes")
     if materialization.schema != PACKAGE_MATERIALIZATION_SCHEMA:
         _fail("materialization schema drifted")
     if (materialization.file_count, materialization.total_bytes) != (TOTAL_FILE_COUNT, TOTAL_BYTES):
@@ -272,6 +322,8 @@ def main() -> int:
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "max_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
     }
+    if args.reuse_immutable:
+        result["storage"] = _storage_evidence(plan, root, args.output, before)
     args.result_out.parent.mkdir(parents=True, exist_ok=True)
     args.result_out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True), flush=True)

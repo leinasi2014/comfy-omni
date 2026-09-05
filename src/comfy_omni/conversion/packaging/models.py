@@ -146,9 +146,11 @@ class PackageMaterialization:
     file_count: int
     total_bytes: int
     files_sha256: str
+    reuse_immutable: bool = False
+    shared_bytes: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        value = {
             "file_count": self.file_count,
             "files_sha256": self.files_sha256,
             "output_dir": self.output_dir.as_posix(),
@@ -163,6 +165,13 @@ class PackageMaterialization:
             "status": "STAGED_VERIFIED",
             "total_bytes": self.total_bytes,
         }
+        if self.reuse_immutable:
+            value["storage"] = {
+                "mode": "immutable-reuse/v1",
+                "shared_bytes": self.shared_bytes,
+                "copied_bytes": self.total_bytes - self.shared_bytes,
+            }
+        return value
 
 
 @dataclass(frozen=True)

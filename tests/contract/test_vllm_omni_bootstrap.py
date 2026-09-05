@@ -7,6 +7,8 @@ import types
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 import comfy_omni.plugin
 
 _HEAVY_MODULE_NAMES = ("torch", "vllm", "vllm_omni", "fastapi")
@@ -20,11 +22,19 @@ _EXPECTED_ARCHITECTURE_CALLS = [
     ),
     mock.call(
         "MiniMaxH3DensePipeline",
-        "comfy_omni.integrations.vllm_omni.pipelines.dense_pipeline",
-        "MiniMaxH3DensePipeline",
+        "comfy_omni.integrations.vllm_omni.pipelines.runtime_pipeline",
+        "H3ComfyMiniMaxH3Pipeline",
         post_process_func_name="get_minimax_h3_post_process_func",
     ),
 ]
+
+
+@pytest.fixture(autouse=True)
+def worker_registration_phase(monkeypatch):
+    from comfy_omni.integrations.vllm_omni import bootstrap
+
+    # Root API-phase contracts have separate real-import/HTTP coverage.
+    monkeypatch.setattr(bootstrap, "_is_root_process", lambda: False)
 
 
 def _install_host(monkeypatch, register_diffusion_model) -> None:
@@ -76,8 +86,8 @@ def test_bootstrap_registers_frozen_architectures_once_into_a_resident_host(monk
         ),
         mock.call(
             "MiniMaxH3DensePipeline",
-            "comfy_omni.integrations.vllm_omni.pipelines.dense_pipeline",
-            "MiniMaxH3DensePipeline",
+            "comfy_omni.integrations.vllm_omni.pipelines.runtime_pipeline",
+            "H3ComfyMiniMaxH3Pipeline",
             post_process_func_name="get_minimax_h3_post_process_func",
         ),
     ]
