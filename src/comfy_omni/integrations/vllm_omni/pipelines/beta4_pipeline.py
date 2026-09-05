@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import logging
+import os
+from math import prod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,13 +29,25 @@ from vllm_omni.diffusion.models.minimax_h3 import pipeline_minimax_h3 as pipelin
 from comfy_omni.contracts.beta4 import BETA4_TARGET_INVENTORY
 from comfy_omni.integrations.vllm_omni.pipelines import scoped_construction as construction
 from comfy_omni.runtime.h3.beta4_binding import BETA4_RUNTIME_ARCHITECTURE, verify_beta4_binding_unchanged
+from comfy_omni.runtime.h3.raw_beta4 import RawBeta4Binding
+from comfy_omni.runtime.h3.raw_standard import RawStandardBinding
+from comfy_omni.runtime.hotel import H3TensorDescriptor, PreparedH3DitSelection
 
 if TYPE_CHECKING:
     from comfy_omni.runtime.h3.beta4_binding import Beta4ComponentBinding
 
-_PACKAGE_BINDING: Beta4ComponentBinding | None = None
+_PACKAGE_BINDING: Beta4ComponentBinding | RawBeta4Binding | None = None
 _BUFFERS = frozenset({"adaln_t_table", "adaln_basis", "adaln_mean", "rope.inv_freq"})
 _FP32_HEADS = ("video_patch_proj.", "audio_patch_proj.", "final_layer.video_out.", "final_layer.audio_out.")
+_AUXILIARY_BUFFERS = frozenset({"adaln_basis", "adaln_mean"})
+_LOG = logging.getLogger(__name__)
+
+
+def _verify_binding_unchanged(binding):
+    if isinstance(binding, RawBeta4Binding):
+        binding.verify_unchanged()
+    else:
+        verify_beta4_binding_unchanged(binding)
 
 
 def _runtime_name(source_name):
@@ -155,7 +170,7 @@ class H3Beta4DiTModel(official.MiniMaxH3DiTModel):
                 )
             ) or getattr(od_config.parallel_config, "use_hsdp", False):
                 raise ValueError("beta4 first runtime supports native TP construction without host offload/HSDP")
-            verify_beta4_binding_unchanged(binding)
+            _verify_binding_unchanged(binding)
             self.beta4_binding = binding
             self.beta4_ready = False
             self._load_started = False
@@ -200,11 +215,11 @@ class H3Beta4DiTModel(official.MiniMaxH3DiTModel):
             raise ValueError("beta4 requires 530 parameters and four persistent buffers")
 
     def load_weights(self, weights):
-        if self._load_started:
+        if self._load_started and not isinstance(self.beta4_binding, RawBeta4Binding):
             raise RuntimeError("beta4 permits one complete load per constructed model")
         self._load_started = True
         self.beta4_ready = False
-        verify_beta4_binding_unchanged(self.beta4_binding)
+        _verify_binding_unchanged(self.beta4_binding)
         seen = set()
 
         def checked():
@@ -212,7 +227,12 @@ class H3Beta4DiTModel(official.MiniMaxH3DiTModel):
                 expected = self._inventory.get(name)
                 if expected is None or name in seen:
                     raise ValueError(f"beta4 unknown or duplicate source slot: {name}")
-                if tensor.dtype != torch.bfloat16 or tuple(tensor.shape) != expected[1]:
+                accepted_dtype = (
+                    {torch.bfloat16, _runtime_dtype(name)}
+                    if isinstance(self.beta4_binding, RawBeta4Binding)
+                    else {torch.bfloat16}
+                )
+                if tensor.dtype not in accepted_dtype or tuple(tensor.shape) != expected[1]:
                     raise ValueError(f"beta4 source dtype/shape differs: {name}")
                 seen.add(name)
                 yield _runtime_name(name), tensor
@@ -223,8 +243,11 @@ class H3Beta4DiTModel(official.MiniMaxH3DiTModel):
         if loaded != {_runtime_name(name) for name in self._inventory}:
             raise ValueError("beta4 official loader left unconsumed persistent slots")
         self._check_layout()
-        verify_beta4_binding_unchanged(self.beta4_binding)
-        self.beta4_loaded_sources = frozenset(seen)
+        _verify_binding_unchanged(self.beta4_binding)
+        if isinstance(self.beta4_binding, RawBeta4Binding):
+            self.beta4_loaded_sources = frozenset(item.name for item in self.beta4_binding.target_descriptors)
+        else:
+            self.beta4_loaded_sources = frozenset(seen)
         self.beta4_ready = True
         return loaded
 
@@ -251,6 +274,7 @@ class H3Beta4DiTModel(official.MiniMaxH3DiTModel):
         return {
             "status": "READY",
             "source_slots": len(self.beta4_loaded_sources),
+            "runtime_initializers": len(self._inventory) - len(self.beta4_loaded_sources),
             "runtime_slots": len(slots),
             "tensor_parallel_size": get_tensor_model_parallel_world_size(),
             "parameter_bytes": sum(x["bytes"] for x in ledger if x["kind"] == "parameter"),
@@ -269,32 +293,92 @@ class H3Beta4DiTModel(official.MiniMaxH3DiTModel):
         return super().forward(**kwargs)
 
 
+def _raw_audio_vae_type(base_type):
+    def tensor_sha256(tensor):
+        payload = tensor.detach().contiguous().cpu().view(torch.uint8).numpy()
+        return hashlib.sha256(payload).hexdigest()
+
+    class _RawDeterministicAudioVAE(base_type):
+        _comfy_omni_raw_deterministic_decode = True
+
+        def decode_latent(self, latent):
+            trace = os.environ.get("COMFY_OMNI_H3_AUDIO_TRACE") == "1"
+            if trace:
+                latent_sha256 = tensor_sha256(latent)
+            cudnn = torch.backends.cudnn
+            with cudnn.flags(
+                enabled=cudnn.enabled,
+                allow_tf32=cudnn.allow_tf32,
+                benchmark=False,
+                deterministic=True,
+            ):
+                waveform = super().decode_latent(latent)
+            if trace:
+                _LOG.info(
+                    "ComfyOmni raw H3 audio decode worker_pid=%d latent_shape=%s latent_dtype=%s "
+                    "latent_sha256=%s waveform_sha256=%s",
+                    os.getpid(),
+                    tuple(latent.shape),
+                    latent.dtype,
+                    latent_sha256,
+                    tensor_sha256(waveform),
+                )
+            return waveform
+
+    return _RawDeterministicAudioVAE
+
+
+def _pipeline_construction_replacements(*, raw_binding):
+    replacements = {"MiniMaxH3DiTModel": H3Beta4DiTModel}
+    if raw_binding is not None:
+        replacements["MiniMaxH3AudioVAE"] = _raw_audio_vae_type(pipeline.MiniMaxH3AudioVAE)
+    return replacements
+
+
 class H3Beta4Pipeline(pipeline.MiniMaxH3Pipeline):
-    def __init__(self, *, od_config, package, prefix=""):
+    def __init__(self, *, od_config, package=None, raw_binding=None, raw_selection="initial", prefix=""):
         global _PACKAGE_BINDING
         with construction.construction("pipeline"):
-            if package.beta4 is None or _PACKAGE_BINDING is not None:
+            if raw_binding is not None and package is not None:
+                raise ValueError("beta4 requires exactly one original-file or package binding")
+            binding = raw_binding if raw_binding is not None else getattr(package, "beta4", None)
+            if binding is None or _PACKAGE_BINDING is not None:
                 raise ValueError("beta4 pipeline requires one verified component binding")
-            if getattr(od_config, "quantization_config", None) is not None:
-                raise ValueError("beta4 pipeline requires explicit dense quantization_config=None")
+            if raw_binding is not None and not isinstance(raw_binding, RawBeta4Binding):
+                raise ValueError("beta4 original source requires a RawBeta4Binding")
+            quantization = getattr(od_config, "quantization_config", None)
+            transformer_quantization = (
+                pipeline._resolve_component_quant_config(quantization, "transformer")
+                if raw_binding is not None
+                else quantization
+            )
+            if transformer_quantization is not None:
+                raise ValueError("beta4 transformer requires explicit dense quantization_config=None")
             if str(getattr(od_config, "cache_backend", "none") or "none").lower() != "none":
                 raise ValueError("beta4 pipeline forbids approximate diffusion caches")
             local = copy.copy(od_config)
             # Native v3 uses an existing serving view for the partition index.
             # Its source binding was resolved/verified by the package router.
             source_path = Path(od_config.model)
-            partition = package.partition_path
-            if (partition / "model_index.json").is_file():
-                local.model = str(partition)
-            elif (source_path / "transformer").is_symlink() and (source_path / "transformer").resolve(
-                strict=True
-            ) == package.beta4.component_root:
+            if raw_binding is not None:
+                if not source_path.is_dir() or not any(
+                    (candidate / "model_index.json").is_file() for candidate in (source_path, source_path / "Ref2VA")
+                ):
+                    raise ValueError("raw beta4 requires an existing read-only H3 shared component root")
                 local.model = str(source_path)
             else:
-                raise ValueError("beta4 native package requires its prepared Ref2VA serving view")
-            _PACKAGE_BINDING = package.beta4
+                partition = package.partition_path
+                if (partition / "model_index.json").is_file():
+                    local.model = str(partition)
+                elif (source_path / "transformer").is_symlink() and (source_path / "transformer").resolve(
+                    strict=True
+                ) == package.beta4.component_root:
+                    local.model = str(source_path)
+                else:
+                    raise ValueError("beta4 native package requires its prepared Ref2VA serving view")
+            _PACKAGE_BINDING = binding
             try:
-                with construction.substitute(pipeline, MiniMaxH3DiTModel=H3Beta4DiTModel):
+                with construction.substitute(pipeline, **_pipeline_construction_replacements(raw_binding=raw_binding)):
                     super().__init__(od_config=local, prefix=prefix)
             finally:
                 _PACKAGE_BINDING = None
@@ -305,3 +389,107 @@ class H3Beta4Pipeline(pipeline.MiniMaxH3Pipeline):
             ):
                 raise RuntimeError("beta4 pipeline requires one Ref2VA-primary transformer")
             self.comfy_omni_package = package
+            self._raw_beta4_binding = raw_binding
+            self._raw_beta4_loaded = False
+            if raw_binding is not None:
+                sources = [source for source in self.weights_sources if source.prefix == "transformer."]
+                if len(sources) != 1:
+                    raise RuntimeError("raw beta4 requires exactly one host transformer source")
+                self.weights_sources = [source for source in self.weights_sources if source.prefix != "transformer."]
+                self._comfy_omni_h3_sources = {}
+                self.comfy_omni_active_h3_dit = self.comfy_omni_register_h3_dit(raw_selection, raw_binding)
+
+    def comfy_omni_register_h3_dit(self, selection, binding):
+        """Register an already authenticated source at the trusted composition boundary."""
+        if self._raw_beta4_binding is None or not isinstance(binding, RawBeta4Binding):
+            raise ValueError("H3 source registration requires the original-file runtime")
+        if not isinstance(selection, str) or not selection:
+            raise ValueError("H3 selection must be a non-empty identifier")
+        if selection in self._comfy_omni_h3_sources:
+            raise ValueError(f"H3 selection is already registered: {selection}")
+        binding.verify_unchanged()
+        inventory = {item.name: (item.dtype, tuple(item.shape)) for item in binding.target_descriptors}
+        canonical = dict(self.transformer._inventory)
+        expected = (
+            {name: value for name, value in canonical.items() if name not in _AUXILIARY_BUFFERS}
+            if isinstance(binding, RawStandardBinding)
+            else canonical
+        )
+        if set(inventory) != set(expected) or any(
+            shape != expected[name][1]
+            or (
+                dtype not in {"BF16", "F16", "F32"}
+                if isinstance(binding, RawStandardBinding)
+                else dtype != expected[name][0]
+            )
+            for name, (dtype, shape) in inventory.items()
+        ):
+            raise ValueError("H3 source geometry differs from the active transformer")
+        descriptors = tuple(
+            H3TensorDescriptor(
+                name,
+                tuple(shape),
+                str(_runtime_dtype(name)),
+                "buffer" if name in _BUFFERS else "parameter",
+            )
+            for name, (_, shape) in sorted(canonical.items())
+        )
+        prepared = PreparedH3DitSelection(
+            selection=selection,
+            identity=f"sha256:{binding.trusted_identity.sha256}",
+            execution_profile="minimax-h3-beta4-table/v1",
+            tensors=descriptors,
+            logical_bytes=sum(prod(item.shape) * (4 if item.dtype == "torch.float32" else 2) for item in descriptors),
+        )
+        self._comfy_omni_h3_sources[selection] = (binding, prepared)
+        return prepared
+
+    def comfy_omni_prepare_h3_dit(self, selection):
+        """Check registered metadata without reading weights or mutating model memory."""
+        entry = getattr(self, "_comfy_omni_h3_sources", {}).get(selection)
+        if entry is None:
+            raise ValueError(f"H3 selection is not registered: {selection}")
+        binding, prepared = entry
+        binding.verify_unchanged()
+        return prepared
+
+    def comfy_omni_bind_h3_dit(self, prepared):
+        """Select authenticated metadata, also when payloads come from the CPU cache."""
+        current = self.comfy_omni_prepare_h3_dit(prepared.selection)
+        if current != prepared:
+            raise ValueError("H3 source selection changed after preparation")
+        binding, _ = self._comfy_omni_h3_sources[prepared.selection]
+        self.transformer.beta4_binding = binding
+        return binding
+
+    def comfy_omni_iter_h3_dit(self, prepared):
+        """Stream real source weights and explicit non-forward auxiliary initializers."""
+        binding = self.comfy_omni_bind_h3_dit(prepared)
+        for name, tensor in binding.open_weights():
+            # Preserve FP32 table/conditioning values. The backbone uses the
+            # same explicit BF16 execution dtype as the existing host model.
+            yield name, tensor.to(dtype=_runtime_dtype(name))
+        if isinstance(binding, RawStandardBinding):
+            for name in sorted(_AUXILIARY_BUFFERS):
+                yield name, torch.zeros(self.transformer._inventory[name][1], dtype=torch.bfloat16)
+
+    def load_weights(self, weights):
+        binding = self._raw_beta4_binding
+        if binding is None:
+            return super().load_weights(weights)
+        if self._raw_beta4_loaded:
+            raise RuntimeError("raw beta4 pipeline weights have already been loaded")
+        binding.verify_unchanged()
+
+        def shared_weights():
+            for name, tensor in weights:
+                if name.startswith("transformer."):
+                    raise ValueError("raw beta4 cannot also consume a disk transformer shard")
+                yield name, tensor
+
+        loaded = super().load_weights(shared_weights())
+        source = self.comfy_omni_iter_h3_dit(self.comfy_omni_active_h3_dit)
+        loaded.update(super().load_weights((f"transformer.{name}", tensor) for name, tensor in source))
+        binding.verify_unchanged()
+        self._raw_beta4_loaded = True
+        return loaded

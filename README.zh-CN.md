@@ -32,7 +32,9 @@ ComfyOmni 是 vLLM-Omni 插件。首期目标是复用已有 ComfyUI/H3 模型�
 该旧兼容路径已有真实宿主对照证据，继续作为固定可用基线。beta4 DiT 单次 forward 通过，
 不能证明完整的原始量化 H3 模型直接加载和生成已经通过。
 
-现有 H3 原始量化资产直接加载和运行时模型切换仍需实现及真实宿主验收。LoRA 生命周期、工具和节点属于后续工作。
+现有 H3 原文件加载、RAM/VRAM 装卸和已登记模型切换已接入宿主及 API，并有小样本宿主回归。
+固定大模型的完整生成与切换仍需真实 GPU 验收；接口和精度边界见
+[H3 原文件运行说明](docs/guides/h3-original-files.md)。LoRA 生命周期、工具和节点属于后续工作。
 [使用指南](docs/user-guide.zh-CN.md) 区分现有能力与目标。
 实时进度和验收证据维护在 [任务 #4](https://github.com/leinasi2014/comfy-omni/issues/4)。
 

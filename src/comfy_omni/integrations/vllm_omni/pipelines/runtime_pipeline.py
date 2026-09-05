@@ -1,4 +1,4 @@
-"""Host-facing Ref2VA runtime pipeline bound to a verified ComfyOmni package.
+"""Host-facing Ref2VA routing for original files and existing verified packages.
 
 Only the host (``vllm_omni``) imports this module; it lives inside the
 sanctioned ``comfy_omni.integrations.vllm_omni`` boundary and is the only place
@@ -14,6 +14,7 @@ use the dedicated cache pipeline; native packages retain the official pipeline.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from vllm_omni.diffusion.models.minimax_h3.pipeline_minimax_h3 import (
@@ -31,6 +32,54 @@ from comfy_omni.integrations.vllm_omni.package_contract import (
 )
 from comfy_omni.integrations.vllm_omni.pipelines.scoped_construction import CONSTRUCTION_LOCK
 from comfy_omni.integrations.vllm_omni.serving import MARKER_NAME, SERVING_PARTITION_NAME
+
+
+def _raw_sources(settings):
+    """Authenticate configured original files once per distinct format/path."""
+
+    def invalid(message):
+        raise RuntimePackageContractError(message, evidence={"stage": "source-binding"})
+
+    if not isinstance(settings, Mapping):
+        invalid("comfy_omni_h3 must be a mapping")
+    if set(settings) == {"transformer_source"}:
+        active = "initial"
+        sources = {active: {"path": settings["transformer_source"], "format": "h3-beta4-convrot"}}
+    elif set(settings) == {"active", "sources"}:
+        active, sources = settings["active"], settings["sources"]
+    else:
+        invalid("comfy_omni_h3 requires transformer_source or active and sources")
+    if not isinstance(sources, Mapping) or not sources:
+        invalid("H3 sources must be a non-empty mapping of selection IDs")
+    if not isinstance(active, str) or active not in sources:
+        invalid("H3 active selection must name a configured source")
+    validated = {}
+    for selection, entry in sources.items():
+        if not isinstance(selection, str) or not selection or len(selection) > 128:
+            invalid("H3 selection IDs must contain 1 to 128 characters")
+        if not isinstance(entry, Mapping) or set(entry) != {"path", "format"}:
+            invalid("each H3 source requires path and format")
+        source, source_format = entry["path"], entry["format"]
+        if not isinstance(source, (str, Path)) or not source or not Path(source).is_absolute():
+            invalid("H3 source must be an existing absolute file path")
+        if source_format not in ("h3-beta4-convrot", "h3-pruned-convrot"):
+            invalid(f"unsupported H3 source format: {source_format}")
+        validated[selection] = (Path(source), source_format)
+    authenticated, bindings = {}, {}
+    for selection, key in validated.items():
+        if key not in authenticated:
+            path, source_format = key
+            if source_format == "h3-beta4-convrot":
+                from comfy_omni.runtime.h3.raw_beta4 import RawBeta4Binding
+
+                binding = RawBeta4Binding.establish(path)
+            else:
+                from comfy_omni.runtime.h3.raw_standard import RawStandardBinding
+
+                binding = RawStandardBinding.establish(path)
+            authenticated[key] = binding
+        bindings[selection] = authenticated[key]
+    return active, bindings
 
 
 def _resolve_package_root(model_path: Path) -> Path:
@@ -66,7 +115,7 @@ def _resolve_package_root(model_path: Path) -> Path:
 
 
 class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
-    """Construct the runtime selected by the complete verified package contract."""
+    """Select an explicit original source or the existing package contract."""
 
     def __new__(cls, *, od_config, prefix: str = ""):
         model_path = getattr(od_config, "model", None)
@@ -75,6 +124,24 @@ class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
                 "runtime package path is not set on the od_config",
                 evidence={"stage": "package-binding"},
             )
+        additional = getattr(od_config, "additional_config", None) or {}
+        if "comfy_omni_h3" in additional:
+            component_root = Path(model_path)
+            if not component_root.is_dir():
+                raise RuntimePackageContractError(
+                    "original H3 loading requires an existing shared component root",
+                    evidence={"stage": "source-binding"},
+                )
+            from comfy_omni.integrations.vllm_omni.pipelines.beta4_pipeline import H3Beta4Pipeline
+
+            active, bindings = _raw_sources(additional["comfy_omni_h3"])
+            result = H3Beta4Pipeline(
+                od_config=od_config, raw_binding=bindings[active], raw_selection=active, prefix=prefix
+            )
+            for selection, binding in bindings.items():
+                if selection != active:
+                    result.comfy_omni_register_h3_dit(selection, binding)
+            return result
         package_root = _resolve_package_root(Path(model_path))
         package = validate_runtime_package(package_root)
         if getattr(package, "beta4", None) is not None:

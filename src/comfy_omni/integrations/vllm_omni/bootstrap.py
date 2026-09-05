@@ -35,7 +35,10 @@ _REGISTRY_MODULE_NAME = "vllm_omni.diffusion.registry"
 API_SERVER_MODULE = "vllm_omni.entrypoints.openai.api_server"
 
 # Additional API owners can contribute here; no route is a placeholder.
-_API_CONTRIBUTIONS = (("comfy_omni.integrations.vllm_omni.api_phase", "mount_components"),)
+_API_CONTRIBUTIONS = (
+    ("comfy_omni.integrations.vllm_omni.api_phase", "mount_components"),
+    ("comfy_omni.integrations.vllm_omni.api_phase", "mount_runtime"),
+)
 
 
 def _reset_after_fork() -> None:

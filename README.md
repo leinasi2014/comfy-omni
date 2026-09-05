@@ -34,8 +34,11 @@ legacy H3 curve-cache compatibility path exist. That existing path has real-host
 it remains the fixed working baseline. A beta4 DiT forward test does not establish complete
 original-quantized-H3 loading or generation.
 
-Direct loading of the existing original H3 quantized assets and runtime model switching still need
-implementation and real-host acceptance. LoRA lifecycle, tools and nodes are deferred work.
+Original H3 file loading, RAM/VRAM residency and registered-model switching are connected to the
+host and API with small-fixture host regression coverage. Complete generation and switching with
+the fixed full-size models still require GPU acceptance. See the
+[original-file runtime guide](docs/guides/h3-original-files.md) for interfaces and precision boundaries.
+LoRA lifecycle, tools and nodes are deferred work.
 The [user guide](docs/user-guide.md) separates current capabilities from targets.
 Live progress and evidence belong in [Issue #4](https://github.com/leinasi2014/comfy-omni/issues/4).
 

@@ -93,6 +93,11 @@ def test_root_defers_until_the_actual_import_body_has_created_its_router(monkeyp
             "/v1/h3-forge/components",
             "/v1/h3-forge/components/scan",
             "/v1/h3-forge/components/{kind}",
+            "/v1/comfy-omni/h3/runtime",
+            "/v1/comfy-omni/h3/runtime/switch",
+            "/v1/comfy-omni/h3/runtime/unload",
+            "/v1/comfy-omni/h3/runtime/load",
+            "/v1/comfy-omni/h3/runtime/resume",
         }
     finally:
         sys.modules.pop(name, None)
@@ -121,11 +126,11 @@ def test_api_failure_retries_without_registering_architectures_or_mounting_twice
         bootstrap.register()
     assert bootstrap._registration_state == bootstrap._REGISTERED
     assert bootstrap._api_state == bootstrap._NEW
-    assert len(module.router.routes) == 3
+    assert len(module.router.routes) == 8
     bootstrap.register()
     bootstrap.register()
     assert bootstrap._api_state == bootstrap._REGISTERED
-    assert len(module.router.routes) == 3 and len(attempts) == 2
+    assert len(module.router.routes) == 8 and len(attempts) == 2
     assert len(resident_host.call_args_list) == 2
 
 
