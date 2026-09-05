@@ -12,7 +12,10 @@ import argparse
 import asyncio
 import copy
 import hashlib
+import importlib.metadata as metadata
 import json
+import os
+import sys
 import traceback
 from pathlib import Path
 from time import monotonic
@@ -28,6 +31,37 @@ SOURCE_B = Path(
     "minimax_h3_ref2va_pruned_zs05_int8_convrot.safetensors"
 )
 IDENTITY_KEYS = ("worker_pid", "pipeline_id", "transformer_id", "shared_object_ids")
+
+
+class PluginPreflightError(RuntimeError):
+    """The acceptance image cannot prove that its ComfyOmni plugin is active."""
+
+
+def _plugin_preflight() -> None:
+    """Reject an image that would route H3 through the official host pipeline."""
+    try:
+        metadata.distribution("comfy-omni")
+    except metadata.PackageNotFoundError as error:
+        raise PluginPreflightError("comfy-omni distribution is not installed") from error
+    try:
+        metadata.distribution("h3-forge")
+    except metadata.PackageNotFoundError:
+        pass
+    else:
+        raise PluginPreflightError("h3-forge distribution is installed; the acceptance image must use ComfyOmni only")
+
+    entries = metadata.entry_points()
+    candidates = (
+        entries.select(group="vllm_omni.general_plugins")
+        if hasattr(entries, "select")
+        else entries.get("vllm_omni.general_plugins", ())
+    )
+    if not any(item.name == "comfy_omni" and item.value == "comfy_omni.plugin:register" for item in candidates):
+        raise PluginPreflightError("vllm_omni.general_plugins lacks comfy_omni=comfy_omni.plugin:register")
+
+    configured = os.environ.get("VLLM_PLUGINS")
+    if configured is not None and "comfy_omni" not in {item.strip() for item in configured.split(",") if item.strip()}:
+        raise PluginPreflightError("explicit VLLM_PLUGINS does not include comfy_omni")
 
 
 def _json(path: Path, value: object) -> None:
@@ -221,6 +255,8 @@ async def _run(args: argparse.Namespace, output: Path) -> dict[str, object]:
         "events": [],
     }
     try:
+        phase = "plugin-preflight"
+        _plugin_preflight()
         from vllm_omni.entrypoints.async_omni import AsyncOmni
 
         from comfy_omni.integrations.vllm_omni.residency_control import H3ResidencyCoordinator
@@ -342,7 +378,8 @@ def main() -> int:
     args.out.mkdir(parents=True)
     try:
         asyncio.run(_run(args, args.out))
-    except BaseException:
+    except BaseException as error:
+        print(f"h3 raw runtime failed: {error}", file=sys.stderr)
         return 1
     return 0
 
