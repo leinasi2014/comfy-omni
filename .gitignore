@@ -18,6 +18,7 @@ dist/
 *.tar.gz
 
 # Editors and operating systems
+/.worktrees/
 .idea/
 .vscode/
 .DS_Store
