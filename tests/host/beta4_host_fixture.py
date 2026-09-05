@@ -10,8 +10,9 @@ Constructor and packed-input signatures follow vLLM-Omni
 
 from __future__ import annotations
 
-from contextlib import ExitStack, contextmanager
+import hashlib
 import os
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -109,7 +110,9 @@ def tiny_tensor_stream():
         elif name.endswith(("attn.qkv_proj.weight", "mlp.fc1.weight")):
             # Reinterpret safe finite positive BF16 patterns, avoiding row-id
             # collisions caused by casting integer rows greater than 256.
-            rows = (torch.arange(shape[0], dtype=torch.int32) + 0x3000).to(torch.int16)
+            # Keep the row trace numerically active (~0.002..0.125), rather
+            # than an effectively zero attention/MLP path during TP comparisons.
+            rows = (torch.arange(shape[0], dtype=torch.int32) + 0x3B00).to(torch.int16)
             values = rows.view(torch.bfloat16).unsqueeze(1).expand(shape).contiguous()
         else:
             count = 1
@@ -135,7 +138,8 @@ def packed_inputs():
         "token_tags": torch.tensor([1, 1, 1, 0, 0, 0, 0, 2, 2, -1], dtype=torch.long),
         "update_mask": torch.tensor([1, 1, 1, 0], dtype=torch.float32),
         "update_audio_mask": torch.tensor([1, 0], dtype=torch.float32),
-        "prompt_embeds": torch.arange(3 * TEXT_WIDTH, dtype=torch.float32).reshape(3, TEXT_WIDTH).to(torch.bfloat16) / 64,
+        "prompt_embeds": torch.arange(3 * TEXT_WIDTH, dtype=torch.float32).reshape(3, TEXT_WIDTH).to(torch.bfloat16)
+        / 64,
         "img_pos_info": positions([3, 4, 5, 6]),
         "audio_pos_info": positions([7, 8]),
         "text_pos_info": positions([0, 1, 2]),
@@ -146,31 +150,36 @@ def packed_inputs():
 
 
 @contextmanager
-def actual_cpu_host():
-    """Real TP1 Gloo and official modules; a disclosed CPU selector adaptation.
+def actual_cpu_host(*, world_size=1, rank=0, init_method=None):
+    """Real TP1/TP2 Gloo and official modules; a disclosed CPU adaptation.
 
     17285's UnspecifiedOmniPlatform lacks its attention selector. Only that
-    selection method is adapted to return the real official SDPABackend.
-    No module import, attention calculation, linear, loader, or collective
-    is mocked. The installed vLLM's actual CpuPlatform supplies CPU groups.
+    selection method is adapted to return the real official SDPABackend,
+    and its unsupported CPU dispatch delegates to the unchanged pure-Torch
+    forward_cuda method. No attention calculation, linear, loader, or
+    collective is replaced. This is not production GPU kernel evidence.
+    The installed vLLM's actual CpuPlatform supplies CPU groups.
     Caller must use an isolated test process with no existing process group.
     """
-    with TemporaryDirectory(prefix="beta4-host-cache-") as cache, patch.dict(
-        os.environ,
-        {
-            "USER": "beta4-host-test",
-            "TORCHINDUCTOR_CACHE_DIR": str(Path(cache, "inductor")),
-            "TRITON_CACHE_DIR": str(Path(cache, "triton")),
-            "VLLM_CACHE_ROOT": str(Path(cache, "vllm")),
-            "XDG_CACHE_HOME": cache,
-        },
+    with (
+        TemporaryDirectory(prefix="beta4-host-cache-") as cache,
+        patch.dict(
+            os.environ,
+            {
+                "USER": "beta4-host-test",
+                "TORCHINDUCTOR_CACHE_DIR": str(Path(cache, "inductor")),
+                "TRITON_CACHE_DIR": str(Path(cache, "triton")),
+                "VLLM_CACHE_ROOT": str(Path(cache, "vllm")),
+                "XDG_CACHE_HOME": cache,
+            },
+        ),
     ):
-        with _actual_cpu_host() as host:
+        with _actual_cpu_host(world_size=world_size, rank=rank, init_method=init_method) as host:
             yield host
 
 
 @contextmanager
-def _actual_cpu_host():
+def _actual_cpu_host(*, world_size, rank, init_method):
     import torch
     import vllm.platforms as vllm_platforms
     from vllm.platforms.cpu import CpuPlatform
@@ -197,13 +206,21 @@ def _actual_cpu_host():
             init_distributed_environment,
             initialize_model_parallel,
         )
+        from vllm_omni.diffusion.attention.backends.sdpa import SDPAImpl
         from vllm_omni.diffusion.config import set_current_diffusion_config
-        from vllm_omni.diffusion.data import OmniDiffusionConfig, TransformerConfig
+        from vllm_omni.diffusion.data import DiffusionParallelConfig, OmniDiffusionConfig, TransformerConfig
         from vllm_omni.diffusion.models.minimax_h3 import minimax_h3_transformer as official
 
+        stack.enter_context(patch.object(SDPAImpl, "forward", SDPAImpl.forward_cuda))
+
+        source = Path(official.__file__).read_bytes()
+        blob = hashlib.sha1(b"blob " + str(len(source)).encode() + b"\0" + source).hexdigest()
+        if blob != "91e03c865b22ffaaa5dbb3bf3ceeaf804a5564c8":
+            raise RuntimeError("actual CPU fixture requires the exact 17285 official transformer source")
         od_config = OmniDiffusionConfig(
             model=None,
             model_class_name="MiniMaxH3Pipeline",
+            parallel_config=DiffusionParallelConfig(tensor_parallel_size=world_size),
             tf_model_config=TransformerConfig.from_dict(tiny_arch_config()),
             diffusion_attention_config={"default": "sdpa"},
         )
@@ -213,11 +230,11 @@ def _actual_cpu_host():
         stack.callback(destroy_distributed_environment)
         stack.callback(destroy_model_parallel)
         init_distributed_environment(
-            world_size=1,
-            rank=0,
-            local_rank=0,
-            distributed_init_method=Path(temporary, "init").as_uri(),
+            world_size=world_size,
+            rank=rank,
+            local_rank=rank,
+            distributed_init_method=init_method or Path(temporary, "init").as_uri(),
             backend="gloo",
         )
-        initialize_model_parallel(tensor_model_parallel_size=1, pipeline_model_parallel_size=1, backend="gloo")
+        initialize_model_parallel(tensor_model_parallel_size=world_size, pipeline_model_parallel_size=1, backend="gloo")
         yield SimpleNamespace(torch=torch, official=official, od_config=od_config, cpu_selector_adapted=True)

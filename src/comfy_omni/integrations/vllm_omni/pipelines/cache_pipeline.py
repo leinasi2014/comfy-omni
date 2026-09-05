@@ -36,6 +36,7 @@ from vllm_omni.diffusion.models.minimax_h3.time_request import (
 )
 from vllm_omni.errors import OmniClientError
 
+from comfy_omni.integrations.vllm_omni.pipelines import scoped_construction as construction
 from comfy_omni.runtime.h3.package_binding import CurveCacheBinding
 from comfy_omni.runtime.h3.requests import (
     H3ApiContractError,
@@ -44,12 +45,9 @@ from comfy_omni.runtime.h3.requests import (
 )
 from comfy_omni.runtime.h3.schedule import MODE_FIELDS, H3ScheduleContract
 
-_CONSTRUCTION_LOCK = threading.RLock()
 _REQUEST_LOCK = threading.RLock()
 _BUILD_STATE: _CurveCacheState | None = None
 _PACKAGE_BINDING: CurveCacheBinding | None = None
-_MODEL_CONSTRUCTED = False
-_PIPELINE_CONSTRUCTED = False
 
 
 def _verify_official_runtime_schedule(schedule: H3ScheduleContract) -> None:
@@ -283,13 +281,11 @@ class _CacheAdalnProj(nn.Module):
 
 class H3ComfyCacheDiTModel(OfficialMiniMaxH3DiTModel):
     def __init__(self, od_config: Any, quant_config: Any = None) -> None:
-        with _CONSTRUCTION_LOCK:
+        with construction.construction("model"):
             self._initialize_cache_model(od_config, quant_config)
 
     def _initialize_cache_model(self, od_config: Any, quant_config: Any) -> None:
-        global _BUILD_STATE, _MODEL_CONSTRUCTED
-        if _MODEL_CONSTRUCTED:
-            raise RuntimeError("h3-forge permits exactly one H3 model per worker process")
+        global _BUILD_STATE
         if _PACKAGE_BINDING is None:
             raise RuntimeError("cache model constructed without a verified package binding")
         state = _CurveCacheState(_PACKAGE_BINDING)
@@ -308,7 +304,6 @@ class H3ComfyCacheDiTModel(OfficialMiniMaxH3DiTModel):
             _BUILD_STATE = None
         state.assert_constructed()
         self.h3_forge_curve_cache = state
-        _MODEL_CONSTRUCTED = True
 
 
 def _cache_mode(task: str, ref_blocks: list[dict[str, Any]] | None) -> str:
@@ -330,10 +325,8 @@ class H3CurveCachePipeline(OfficialMiniMaxH3Pipeline):
     """Official H3 pipeline with cache-only time/AdaLN construction."""
 
     def __init__(self, *, od_config: Any, package: Any, prefix: str = "") -> None:
-        global _PIPELINE_CONSTRUCTED, _PACKAGE_BINDING
-        with _CONSTRUCTION_LOCK:
-            if _PIPELINE_CONSTRUCTED:
-                raise RuntimeError("h3-forge permits exactly one H3 pipeline per worker process")
+        global _PACKAGE_BINDING
+        with construction.construction("pipeline"):
             cache_backend = str(getattr(od_config, "cache_backend", "none") or "none").lower()
             if cache_backend != "none":
                 raise RuntimeError("h3-forge strict parity forbids approximate diffusion cache backends")
@@ -349,12 +342,11 @@ class H3CurveCachePipeline(OfficialMiniMaxH3Pipeline):
             finally:
                 official_pipeline.MiniMaxH3DiTModel = original_model
                 _PACKAGE_BINDING = None
-        if not isinstance(self.transformer, H3ComfyCacheDiTModel):
-            raise RuntimeError("official H3 pipeline did not construct the cache-only DiT")
-        if self.partition != "ref2va" or hasattr(self, "transformers_ref"):
-            raise RuntimeError("h3-forge v1 requires one Ref2VA-primary transformer")
-        self.comfy_omni_package = package
-        _PIPELINE_CONSTRUCTED = True
+            if not isinstance(self.transformer, H3ComfyCacheDiTModel):
+                raise RuntimeError("official H3 pipeline did not construct the cache-only DiT")
+            if self.partition != "ref2va" or hasattr(self, "transformers_ref"):
+                raise RuntimeError("h3-forge v1 requires one Ref2VA-primary transformer")
+            self.comfy_omni_package = package
 
     def eval(self) -> H3CurveCachePipeline:
         super().eval()

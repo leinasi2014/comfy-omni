@@ -234,6 +234,7 @@ def cache_host(monkeypatch, tmp_path):
     sys.modules["vllm_omni.errors"].OmniClientError = ClientError
     monkeypatch.delitem(sys.modules, CACHE, raising=False)
     runtime = importlib.import_module(CACHE)
+    monkeypatch.setattr(runtime.construction, "state", runtime.construction.WorkerConstructionState())
     monkeypatch.delitem(sys.modules, RUNTIME, raising=False)
     router = importlib.import_module(RUNTIME)
     root, partition = _package(tmp_path)
@@ -417,7 +418,7 @@ def test_approximate_cache_backend_is_rejected_before_construction(cache_host):
     config = types.SimpleNamespace(model=str(host.package.partition_path), cache_backend="tea_cache")
     with pytest.raises(RuntimeError, match="forbids approximate"):
         host.router.H3ComfyMiniMaxH3Pipeline(od_config=config)
-    assert not host.runtime._MODEL_CONSTRUCTED
+    assert not host.runtime.construction.state.model_constructed
     assert host.pipeline.MiniMaxH3DiTModel is host.original_dit
 
 
@@ -478,7 +479,7 @@ def test_runtime_replay_detects_changed_host_scheduler(cache_host, monkeypatch):
     monkeypatch.setattr(host.runtime, "minimax_h3_time_shift_sigmas", drift)
     with pytest.raises(ValueError, match="runtime schedule differs"):
         host.build()
-    assert not host.runtime._MODEL_CONSTRUCTED
+    assert not host.runtime.construction.state.model_constructed
 
 
 def test_cache_mode_matrix(cache_host):
