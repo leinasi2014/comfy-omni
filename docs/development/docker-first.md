@@ -102,6 +102,20 @@ live evidence. A mirror does not make a mutable tag an acceptable release identi
 - Pin production/runtime base images and integration dependencies before claiming a release
   candidate. Record image ID and content digest in server evidence.
 
+## Explicit immutable storage administration
+
+The opt-in package `reuse_immutable` mode is a metadata write operation, separate from ordinary
+conversion and inference. Hardlinks may require a shared writable mount for the named related
+component roots and a distinct private output subtree. A live Issue/PR must first bind that
+specific operation, roots, copy budget, verification and rollback. Source payloads must have no
+write permission and may only be opened read-only; no source chmod, replacement or payload write
+is permitted. Use directory-descriptor operations and exclusive planned staging names. Record
+the intentional link-count/ctime changes and actual shared/copied bytes. Cross-mount fallback
+must fit its explicit copy allocation. The non-root, capability, network, evidence and container
+execution requirements above still apply. Normal source/model mounts remain read-only.
+
+See [immutable package reuse](../migration/immutable-package-reuse.md) for the API and invariant.
+
 ## CI and server acceptance
 
 GitHub Actions may check out source, inspect Git state, and invoke Docker on the runner. It must not
