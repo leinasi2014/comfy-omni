@@ -1,9 +1,21 @@
 {
   "schema_id": "comfy-omni.test-model-baseline/v1",
   "status": "pinned-for-validation",
-  "updated": "2026-09-03",
+  "updated": "2026-09-05",
   "download_policy": "maintainer-managed-external-only",
   "redistribute_with_comfy_omni": false,
+  "validation_policy": {
+    "model_storage": "reuse-existing-read-only-assets",
+    "runtime_disk_conversion_required": false,
+    "runtime_package_assembly_required": false,
+    "first_release": "H1 existing H3 source loading; H2 RAM/VRAM residency, unchanged component reuse and switching within existing workers; H3 real-host validation and delivery.",
+    "deferred_scope": "Complete LoRA lifecycle, tools and node workflows are future work and do not block the first release. Retained LoRA asset records do not require first-release model reads or activation runs.",
+    "initial_identity": "Establish byte size and full SHA256 once when an asset enters the trusted validation inventory; retain the source and file identity record.",
+    "subsequent_checks": "Reuse the existing identity record with bounded path, file-identity, size, change-time, header and configuration checks. These checks are not a new full-payload hash. Stop affected loading on drift and explicitly re-establish the affected identity when needed.",
+    "repeat_code_validation": "Keep the existing read-only model paths and declared host environment fixed while testing code changes; do not prefetch, copy, normalize, export or assemble models for every candidate.",
+    "hot_loading": "Keep one control-service instance and its existing workers; manage RAM/VRAM residency, component reuse, active identity, leases and caches. Worker reconstruction is reported recovery or fallback, not normal hot-loading acceptance. Do not create or delete model payloads as part of a switch.",
+    "fixture_field_scope": "Asset staging_policy, runtime_conformance and legacy validation-use labels are provenance and existing contract-fixture data only. They schedule no model-processing task, define no runtime prerequisite and do not claim that original-source loading is already implemented."
+  },
   "assets": [
     {
       "id": "primary-dit",
@@ -300,7 +312,7 @@
         "tokenizer-config",
         "processor-config"
       ],
-      "required_outcome": "Every source payload matches its pinned byte size and SHA256 before inspection or load; nonconformant source bytes remain quarantined and any normalized derivative receives a separate digest-bound identity."
+      "required_outcome": "Each asset has an initial pinned byte-size and SHA256 record. Repeated inspection and loading reuse that record with bounded identity checks, without rehashing every unchanged payload. Unsupported format differences fail explicitly; historical derivatives retain separate identities and are not mandatory startup artifacts."
     },
     {
       "id": "primary-runtime-smoke",
@@ -310,16 +322,18 @@
         "audio-vae",
         "video-vae"
       ],
-      "required_outcome": "The pinned package loads and produces digest-bound video and audio smoke evidence on the designated GPU host."
+      "required_outcome": "The fixed existing read-only components load and produce identity-bound video and audio smoke evidence on the designated GPU host. No new dense checkpoint or assembled model package is a startup prerequisite; a documented compatible legacy package may be reused in place."
     },
     {
       "id": "lora-compatibility",
+      "scope": "future",
+      "first_release_prerequisite": false,
       "asset_ids": [
         "primary-dit",
         "spatial-physics-lora",
         "realism-people-lora"
       ],
-      "required_outcome": "Preflight proves a supported mapping or rejects the pairing with a stable reason before runtime mutation; activation runs only after a supported verdict."
+      "required_outcome": "For a separately selected future LoRA task, preflight proves a supported mapping or rejects the pairing with a stable reason before runtime mutation; activation runs only after a supported verdict. This scenario is not a first-release acceptance gate."
     },
     {
       "id": "full-dit-hot-swap",
@@ -330,10 +344,12 @@
         "audio-vae",
         "video-vae"
       ],
-      "required_outcome": "One host process completes A-to-B-to-A switching, reports the correct digest-bound active model at each step, generates after every switch, invalidates stale caches, and returns resources within the declared budget."
+      "required_outcome": "One control-service instance and its existing workers complete A-to-B-to-A switching against the same existing read-only assets, reuse unchanged components, report control/worker and active-model identities, generate after every switch, invalidate stale caches and return RAM/VRAM within budget without creating or deleting model payloads. Worker reconstruction is reported recovery or fallback and does not count as normal hot-loading acceptance."
     },
     {
       "id": "package-assembly",
+      "scope": "fixture-data-only",
+      "runtime_prerequisite": false,
       "asset_ids": [
         "hot-swap-dit",
         "text-encoder",
@@ -342,7 +358,7 @@
         "tokenizer-config",
         "processor-config"
       ],
-      "required_outcome": "On the designated Docker host, the fixed six-component trees (the Ref2VA conversion export bound to hot-swap-dit provenance, the digest-pinned strict text-encoder derivative, both VAE payloads, and the official Ref2VA tokenizer/processor directories) pass receipt parsing, plan authorization, source verification, private staging, manifest-last write, and same-parent atomic publication; an independent verifier re-reads the published package before assembly is accepted."
+      "required_outcome": "Preserve the legacy scenario identifier and asset references for existing contract fixtures only. This record schedules no assembly task and is not a runtime acceptance prerequisite."
     }
   ]
 }

@@ -1,7 +1,7 @@
 # Contributing to ComfyOmni
 
-Thank you for helping build ComfyOmni. The project is in an architecture-first migration stage, so
-small, reviewable changes and explicit compatibility decisions matter more than rapid code movement.
+Thank you for helping build ComfyOmni. Deliver small, reviewable H3 runtime improvements
+against the fixed existing model environment and preserve proven compatibility.
 
 ## Required reading
 
@@ -111,7 +111,7 @@ decision before it enters the public repository.
 
 ## Quality expectations
 
-- Preserve offline conversion and fail-closed publication.
+- Keep offline export utilities separate from normal runtime loading and switching.
 - Keep the plugin import lightweight and free of model I/O.
 - Do not introduce new import cycles or public-facade back edges.
 - Add tests before fixing bugs.

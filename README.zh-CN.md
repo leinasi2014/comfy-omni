@@ -1,189 +1,111 @@
 # ComfyOmni
 
-> Bring Comfy checkpoints to native Omni runtimes.
+> 为 vLLM-Omni 接入 ComfyUI 模型资产与可组合的生成能力。
 
 [English](README.md) · **简体中文**
 
 <!-- README_SYNC: overview -->
-## 项目简介
+## 项目定位
 
-ComfyOmni 是一个开源桥接项目，用于检查、转换、打包和验证 Comfy 生态 checkpoint，并将其交付给
-原生 Omni 运行时。项目坚持离线转换，目标是生成不可变、可验证的运行时包，而不是让推理 worker
-在启动时解析任意 Comfy checkpoint。
+ComfyOmni 是 vLLM-Omni 插件。首期目标是复用已有 ComfyUI/H3 模型与组件文件，在 RAM/VRAM 中加载、
+卸载和切换。LoRA 组合、工具、节点工作流及其他模型家族放到后续，不阻塞首期交付。
+正常启动和模型切换不应要求用户重新转换权重或组装模型目录。
 
-项目正在基于已经合并的 `h3-forge` 代码库重新构建，最终对外只提供一个 distribution、一个 Python
-包、一个 CLI 和一个运行时插件入口。首个计划完成真实验收的集成是固定版本的 vLLM-Omni；其他运行时
-必须提供独立 adapter 和验收证据。
-
-ComfyOmni 是独立的开源项目。除非另有明确说明，它不属于 ComfyUI、Comfy.org、vLLM、MiniMax 或
-这些项目维护者的官方项目。
+本项目独立维护，并非 ComfyUI、vLLM 或 MiniMax 的官方项目。
 
 <!-- README_SYNC: naming -->
-## 命名与源码目录
+## 命名
 
-| 身份 | 名称／路径 |
+| 角色 | 名称/路径 |
 |---|---|
-| 产品与文档标题 | `ComfyOmni` |
-| GitHub 仓库及 clone 后的目录 | `comfy-omni` |
-| PyPI distribution | `comfy-omni` |
-| CLI 命令 | `comfy-omni` |
-| Python import package | `comfy_omni` |
-| 可导入源码路径 | `src/comfy_omni/` |
-
-因此 clone 后的完整关系是 `comfy-omni/src/comfy_omni`。仓库内部不会再重复创建
-`comfy-omni/`：`src/` 用于隔离可导入源码与项目文件；`comfy_omni` 使用下划线，是因为 Python
-import package 应当是合法标识符。GitHub 可能把只有一个子目录的连续路径压缩成一行
-`src/comfy_omni` 显示。
-
-这个结构遵循 Python Packaging User Guide 的
-[src-layout 说明](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/)
-以及
-[distribution package 与 import package 的区别](https://packaging.python.org/en/latest/discussions/distribution-package-vs-import-package/)。
+| 产品 | `ComfyOmni` |
+| 仓库与发行包 | `comfy-omni` |
+| Python 包 | `comfy_omni` |
+| 源码 | `src/comfy_omni/` |
+| CLI | `comfy-omni` |
+| 宿主入口点分组 | `vllm_omni.general_plugins` |
 
 <!-- README_SYNC: status -->
-## 项目状态
+## 当前能力
 
-**Pre-alpha 迁移阶段。** 当前仓库包含轻量包／插件注册、严格 checkpoint 检查、固定文本编码器
-规范化、不可变源合同、有界离线 ConvRot 导出，以及原生包组装和验证。H3 集成还包含面向明确审计的
-`h3-forge@e9cb011` v3 配方的[曲线缓存兼容适配器](docs/migration/h3-cache-runtime-e9cb011.md)，
-与现有 native v3 布局并存。适配器保留旧制品和 wire 标识，并区分制品生产者与当前执行的
-ComfyOmni wheel 身份。
+重构尚未完成。已有单一插件注册、组件目录/API，以及审计过的 legacy H3 curve-cache 兼容路径。
+该旧兼容路径已有真实宿主对照证据，继续作为固定可用基线。beta4 DiT 单次 forward 通过，
+不能证明完整的原始量化 H3 模型直接加载和生成已经通过。
 
-各项能力分别需要代表性的真实宿主验收。当前验收与发布决定位于
-[运行时 Issue](https://github.com/leinasi2014/comfy-omni/issues/11) 和
-[项目 Epic](https://github.com/leinasi2014/comfy-omni/issues/4)。HTTP API 迁移、其他运行时 profile、
-LoRA 生命周期和完整 DiT 热切换仍是独立工作；当前候选不声明广泛运行时兼容或预览版整体完成。
+现有 H3 原始量化资产直接加载和运行时模型切换仍需实现及真实宿主验收。LoRA 生命周期、工具和节点属于后续工作。
+[使用指南](docs/user-guide.zh-CN.md) 区分现有能力与目标。
+实时进度和验收证据维护在 [任务 #4](https://github.com/leinasi2014/comfy-omni/issues/4)。
 
 <!-- README_SYNC: goals -->
 ## 设计目标
 
-- 在不把模型 payload 加载进 GPU 的情况下检查 checkpoint 结构。
-- 通过显式、带版本的 profile 离线转换目标运行时不支持的表示。
-- 当目标运行时支持相同原生表示时，保持 tensor 字节不变。
-- 使用摘要、溯源、schema 校验和 fail-closed 发布生成不可变包。
-- 禁止转换、反量化和映射工作进入推理热路径。
-- 把运行时特定代码隔离到 `integrations/vllm_omni` 等 integration 中。
-- 提供统一的 Python API、CLI、错误模型、测试基线和发布流程。
-- 在修改运行时前证明 LoRA 兼容性，并对不支持的底模／adapter 组合 fail closed。
-- 在同一个宿主进程完成完整 DiT 的 A → B → A 热切换，验证模型身份、缓存失效、失败恢复和资源回收。
+- 引用已有 ComfyUI 组件文件，复用一套固定模型环境。
+- 在 RAM/VRAM 中管理驻留、请求隔离、加载及失败恢复。
+- 明确各格式支持范围，使用原生量化能力或有界的加载阶段内存适配。
+- 保留旧实现已经验证的行为，按可用 H3 功能逐步交付。
+
+内存 LoRA 组合、工具和节点工作流属于后续扩展，不是首期验收门槛。
 
 <!-- README_SYNC: architecture -->
 ## 架构
 
-```text
-CLI / HTTP API / runtime integrations
-                 |
-                 v
-            application
-             /        \
-     conversion      runtime
-             \        /
-          artifacts / contracts / domain
-                       |
-                       v
-                      core
-```
+应用服务协调来源绑定、组件加载器和模型会话；vLLM-Omni 适配层将其接入固定宿主。
+已存在的导出包可以继续作为一种资产来源使用；运行时的目标不再以创建模型包为前提。
 
-目标源码结构位于 [`src/comfy_omni`](src/comfy_omni)。[已验证的目标架构图](docs/architecture/README.md)
-展示依赖与发布边界，并明确区分已经证明的 M0 能力和计划工作。内部模块必须遵守以上依赖方向；public facade
-只服务外部消费者，不能成为仓内模块绕过分层的依赖捷径。
+参见 [运行时架构](docs/architecture/README.md) 和
+[H3 优先重构方案](docs/post-merge-refactoring-plan.md)。这些文档定义目标，不代表重构已经实现。
 
 <!-- README_SYNC: milestones -->
-## 大方向里程碑
+## 交付顺序
 
-| ID | 里程碑 | 结果 | 状态 |
-|---|---|---|---|
-| M0 | 仓库基础与公开审计 | 独立仓库、双语文档、消费者清单、许可证／历史审计和冻结基线 | 进行中 |
-| M1 | 可信发布门 | pytest 完整收集、Ruff、可复现 sdist/wheel、包资源检查和 clean-install smoke | 计划中 |
-| M2 | ComfyOmni 原子迁移 | distribution、import package、CLI、plugin target 和权威文档同步迁移，不擅自修改 wire contract | 计划中 |
-| M3 | 单一 bootstrap 与依赖方向 | 一个惰性、幂等 bootstrap；消除插件递归、public facade 反向依赖和 import cycle | 计划中 |
-| M4 | 转换模块化 | inspection、contract、mapping、exporter、LoRA conversion、packaging 和 publication 各有明确 owner | 计划中 |
-| M5 | 运行时模块化 | runtime service 与离线 conversion、vLLM-Omni 宿主子类彻底分离 | 计划中 |
-| M6 | 运行时验收 | 固定 vLLM-Omni adapter 与摘要绑定模型集通过 package、load、request、LoRA preflight／生命周期、完整 DiT A → B → A 热切换、parity 和 fail-closed 验收门 | 计划中 |
-| M7 | 开源预览版 | 发布许可证清晰、文档同步、制品可复现的 `0.2.0a1` 或 `0.2.0b1` | 计划中 |
+| ID | 用户可见结果 | 验收条件 |
+|---|---|---|
+| H1 | 加载已有组件来源 | 固定 H3 加载回归、旧行为不退化、不新增整套模型副本 |
+| H2 | 驻留组件复用和模型切换 | 同一控制实例及已有 worker 完成 A→B→A；核对身份、缓存失效、恢复和资源释放 |
+| H3 | 真实宿主验证与交付 | 固定资产加载、生成及正常 worker 内切换通过；受影响的软件门禁通过并交付到 main |
 
-详细顺序和出口条件见
-[合并后重构与开源整理方案](docs/post-merge-refactoring-plan.md)。
-外部测试资产与证据规则固定在
-[模型验证基线](docs/testing/model-validation-baseline.md)；模型 payload 永远不会存入本仓库，也不会由
-普通 CI 下载。
+这里是依赖顺序，不是实时状态表。[固定模型验证基线](docs/testing/model-validation-baseline.md)
+规定资产与验证边界。普通 CI 不下载模型权重。
+worker 重建只作为明确报告的恢复或降级路径，不算正常热加载通过。
+LoRA 组合、工具和节点工作流不属于本期交付顺序。
 
 <!-- README_SYNC: layout -->
 ## 仓库结构
 
 ```text
-.
-├── AGENTS.md                 # 架构、编码、测试和 Git 规范
-├── CONTRIBUTING.md           # 贡献与 Pull Request 流程
-├── Dockerfile                # 开发、质量、打包与 CLI 镜像目标
-├── pyproject.toml             # distribution 元数据、CLI、插件入口和工具配置
-├── README.md                 # 英文项目简介
-├── README.zh-CN.md           # 简体中文项目简介
-├── docs/                     # 设计文档、ADR 和公开证据索引
-├── scripts/                  # 仓库检查脚本
-├── src/comfy_omni/           # 新的模块化 Python 包
-└── tests/                    # unit、contract、integration、packaging 和 host 测试层
+src/comfy_omni/    插件、契约、加载器、运行时及应用代码
+tests/            单元、契约、集成、打包和宿主检查
+docs/             当前设计、使用、测试及代码来源
+scripts/          容器执行与仓库检查
+.worktrees/       插件内部的开发隔离目录，忽略提交
 ```
-
-旧仓库和本地证据保留在这个独立 Git 根之外，不属于公开的 ComfyOmni 仓库；只有通过审计迁移后，
-相关内容才可以进入本仓库。
 
 <!-- README_SYNC: development -->
 ## 开发
 
 `DOCKER_FIRST_POLICY: v1`
 
-修改代码前请依次阅读：
-
-1. [`AGENTS.md`](AGENTS.md)
-2. [`CONTRIBUTING.md`](CONTRIBUTING.md)
-3. [`docs/post-merge-refactoring-plan.md`](docs/post-merge-refactoring-plan.md)
-4. [`docs/development/docker-first.md`](docs/development/docker-first.md)
-
-Docker 是唯一权威执行边界。禁止在宿主机安装 ComfyOmni、Python 依赖或模型／运行时依赖。宿主机只
-负责文件编辑、Git／GitHub、Docker／Compose、SSH／SCP，以及维持容器边界所需的诊断。仓库门与当前
-CLI 统一通过包装脚本执行：
+先读 [AGENTS.md](AGENTS.md)、[CONTRIBUTING.md](CONTRIBUTING.md) 和
+[Docker 执行规范](docs/development/docker-first.md)。项目 Python、测试及模型执行均在 Docker 内完成，
+宿主负责文件编辑及 Git、Docker、SSH 操作。
 
 ```bash
 ./scripts/docker.sh docs 3.13
 ./scripts/docker.sh quality 3.10
 ./scripts/docker.sh quality 3.13
 ./scripts/docker.sh package 3.12
-./scripts/docker.sh cli 3.13 --help
 ```
 
-PowerShell 用户使用 `scripts/docker.ps1` 的同名 action。模型／checkpoint 命令必须使用构建好的镜像，
-显式只读挂载输入，并单独挂载有边界的输出／证据目录，具体规则见 Docker-first 规范。本地没有 Docker
-只代表本地门不可用，不允许回退到宿主 Python；仍必须取得可信 CI 与指定服务器 Docker 证据。
-
-完成所需挂载声明后，以下是**容器内部**命令，绝不是宿主 shell 的安装或执行说明：
-
-```text
-comfy-omni inspect CHECKPOINT.safetensors --json
-comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json
-comfy-omni contract scan SOURCE.safetensors --json
-comfy-omni contract draft SOURCE.safetensors --generated-by OPERATOR -o DRAFT.json
-comfy-omni contract pin DRAFT.json --name PROFILE --reviewer REVIEWER \
-  --evidence REVIEW.md --contract-dir CONTRACTS
-comfy-omni contract list --contract-dir CONTRACTS --json
-```
-
-目前提供项目身份、严格的 header-only inspection、
-[唯一精确规范化 profile](docs/migration/text-encoder-normalization.md)，以及
-[已审计的不可变合同工作流](docs/migration/contract-workflows-e9cb011.md)。合同命令会计算源文件摘要，但
-不会物化 tensor payload，也不会导入 Torch／vLLM。只有调用方显式传入 store 时外部合同才可见；旧环境
-变量仅由 CLI 兼容边界读取。通用旧转换／运行时命令仍不可用。快速、确定性的仓库检查在本地和 CI 的
-Docker 中执行；GPU 与运行时验收只在指定服务器的 Docker 中针对摘要绑定资产运行。延后、缺失或目标
-不同的检查都不能伪装成通过。
+PowerShell 使用 `scripts/docker.ps1`。真实运行回归在不同分支间复用既有的只读模型挂载；
+数值与异常测试用小型样本。相关代码和输入没有变化时沿用有效证据，不为代码测试创建模型副本。
 
 <!-- README_SYNC: contributing -->
 ## 参与贡献
 
-使用短期分支、Conventional Commits 和职责单一的 Pull Request。公开信息发生变化时必须同步更新
-两份 README。完整流程与质量清单见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+通过短期分支和聚焦的 PR 交付到受保护的 `main`。中英文 README 同步更新，详见
+[CONTRIBUTING.md](CONTRIBUTING.md)。
 
 <!-- README_SYNC: license -->
 ## 许可证
 
-ComfyOmni 使用 [Apache License 2.0](LICENSE)。迁移进入项目的第三方代码、fixture 和资产仍须遵守
-各自登记的归属与兼容许可证条款。
+[Apache License 2.0](LICENSE)。迁入代码及资产保留记录的来源归属和适用许可证。

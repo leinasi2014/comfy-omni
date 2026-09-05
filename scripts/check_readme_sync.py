@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 READMES = (ROOT / "README.md", ROOT / "README.zh-CN.md")
 SECTION_RE = re.compile(r"<!-- README_SYNC: ([a-z0-9_-]+) -->")
-MILESTONE_RE = re.compile(r"^\| (M\d+) \|", re.MULTILINE)
+MILESTONE_RE = re.compile(r"^\| (H\d+) \|", re.MULTILINE)
 REQUIRED_SECTIONS = (
     "overview",
     "naming",
@@ -22,16 +22,11 @@ REQUIRED_SECTIONS = (
     "contributing",
     "license",
 )
-REQUIRED_MILESTONES = tuple(f"M{index}" for index in range(8))
+REQUIRED_MILESTONES = tuple(f"H{index}" for index in range(1, 4))
 REQUIRED_SHARED_LINKS = (
     "docs/post-merge-refactoring-plan.md",
     "docs/architecture/README.md",
     "docs/testing/model-validation-baseline.md",
-)
-REQUIRED_SHARED_SNIPPETS = (
-    "comfy-omni inspect CHECKPOINT.safetensors --json",
-    "comfy-omni normalize text-encoder SOURCE.safetensors DERIVED.safetensors --json",
-    "docs/migration/text-encoder-normalization.md",
 )
 
 
@@ -63,9 +58,6 @@ def main() -> int:
         for link in REQUIRED_SHARED_LINKS:
             if link not in text:
                 errors.append(f"{relative}: missing shared public link {link}")
-        for snippet in REQUIRED_SHARED_SNIPPETS:
-            if snippet not in text:
-                errors.append(f"{relative}: missing shared public snippet {snippet}")
 
     if len(documents) == len(READMES):
         section_sets = [tuple(SECTION_RE.findall(text)) for text in documents.values()]

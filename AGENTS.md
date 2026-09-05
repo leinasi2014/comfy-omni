@@ -55,6 +55,19 @@ evidence are migration inputs, not part of this Git root unless a reviewed chang
 - Preserve dirty/untracked user files and sibling repositories. Never commit models, local evidence,
   caches, wheels, secrets, private infrastructure, or generated media.
 
+## Reuse the fixed model environment
+
+- Reuse one existing, known-working ComfyUI/H3 model environment for migration and real runtime
+  regression checks. Mount its model/component paths read-only across development branches;
+  isolate code, processes, and small test outputs. Do not copy models for each branch or test run.
+- Model switching loads existing files into RAM/VRAM. A newly converted checkpoint or assembled
+  on-disk model package must not be a prerequisite for normal plugin startup or component switching.
+- Keep conversion, package materialization, and persistent LoRA merging explicit optional tools.
+  Do not run them or create large model copies as an implicit code-test step. Use small fixtures for
+  transformation tests and the fixed existing assets for affected real-host regression checks.
+- Reuse valid regression evidence when code and relevant inputs are unchanged. A new code candidate
+  does not by itself require re-creating or repeatedly re-verifying every large model artifact.
+
 ## Handoff
 
 Report files changed, exact Docker/server evidence, unavailable checks with reasons, public-contract
