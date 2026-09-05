@@ -3,6 +3,7 @@
 Header-derived inventories and explicit consumer semantics are documented in
 docs/migration/te-nvfp4-dense.md. No model bytes or runtime dependencies are loaded.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -27,7 +28,9 @@ RESERVE_BYTES = 12 * 1024**3
 
 
 def schema_sha256(inventory):
-    entries = [{"name": name, "dtype": dtype, "shape": list(shape)} for name, (dtype, shape) in sorted(inventory.items())]
+    entries = [
+        {"name": name, "dtype": dtype, "shape": list(shape)} for name, (dtype, shape) in sorted(inventory.items())
+    ]
     return hashlib.sha256((json.dumps(entries, sort_keys=True, separators=(",", ":")) + "\n").encode()).hexdigest()
 
 
@@ -53,47 +56,64 @@ _text_shapes = {
 for _layer in range(50):
     for _suffix, _shape in _text_shapes.items():
         _weights[f"model.layers.{_layer}.{_suffix}"] = _shape
-    for _suffix, _width in (("input_layernorm", 5120), ("post_attention_layernorm", 5120), ("self_attn.q_norm", 128), ("self_attn.k_norm", 128)):
+    for _suffix, _width in (
+        ("input_layernorm", 5120),
+        ("post_attention_layernorm", 5120),
+        ("self_attn.q_norm", 128),
+        ("self_attn.k_norm", 128),
+    ):
         _plain[f"model.layers.{_layer}.{_suffix}.weight"] = ("BF16", (_width,))
 for _layer in range(27):
     for _suffix, _shape in {
-        "attn.qkv": (3456, 1152), "attn.proj": (1152, 1152),
-        "mlp.linear_fc1": (4304, 1152), "mlp.linear_fc2": (1152, 4304),
-        "norm1": (1152,), "norm2": (1152,),
+        "attn.qkv": (3456, 1152),
+        "attn.proj": (1152, 1152),
+        "mlp.linear_fc1": (4304, 1152),
+        "mlp.linear_fc2": (1152, 4304),
+        "norm1": (1152,),
+        "norm2": (1152,),
     }.items():
         _plain[f"visual.blocks.{_layer}.{_suffix}.weight"] = ("BF16", _shape)
         _plain[f"visual.blocks.{_layer}.{_suffix}.bias"] = ("BF16", (_shape[0],))
 for _base in ("visual.merger", *(f"visual.deepstack_merger_list.{i}" for i in range(3))):
     for _suffix, _shape in {
         "norm": (1152,) if _base == "visual.merger" else (4608,),
-        "linear_fc1": (4608, 4608), "linear_fc2": (5120, 4608),
+        "linear_fc1": (4608, 4608),
+        "linear_fc2": (5120, 4608),
     }.items():
         _plain[f"{_base}.{_suffix}.weight"] = ("BF16", _shape)
         _plain[f"{_base}.{_suffix}.bias"] = ("BF16", (_shape[0],))
-_plain.update({
-    "visual.patch_embed.proj.weight": ("BF16", (1152, 3, 2, 16, 16)),
-    "visual.patch_embed.proj.bias": ("BF16", (1152,)),
-    "visual.pos_embed.weight": ("BF16", (2304, 1152)),
-})
+_plain.update(
+    {
+        "visual.patch_embed.proj.weight": ("BF16", (1152, 3, 2, 16, 16)),
+        "visual.patch_embed.proj.bias": ("BF16", (1152,)),
+        "visual.pos_embed.weight": ("BF16", (2304, 1152)),
+    }
+)
 _source = dict(_plain)
 _dense = dict(_plain)
 for _name, (_rows, _cols) in _weights.items():
-    _source.update({
-        _name + ".weight": ("U8", (_rows, _cols // 2)),
-        _name + ".weight_scale": ("F8_E4M3", (_rows, _cols // 16)),
-        _name + ".weight_scale_2": ("F32", (1,)),
-        _name + ".comfy_quant": ("U8", (19,)),
-    })
+    _source.update(
+        {
+            _name + ".weight": ("U8", (_rows, _cols // 2)),
+            _name + ".weight_scale": ("F8_E4M3", (_rows, _cols // 16)),
+            _name + ".weight_scale_2": ("F32", (1,)),
+            _name + ".comfy_quant": ("U8", (19,)),
+        }
+    )
     _dense[_name + ".weight"] = ("BF16", (_rows, _cols))
-_source.update({
-    "model.embed_tokens.weight": ("I8", (151936, 5120)),
-    "model.embed_tokens.weight_scale": ("F32", ()),
-    "model.embed_tokens.comfy_quant": ("U8", (29,)),
-})
+_source.update(
+    {
+        "model.embed_tokens.weight": ("I8", (151936, 5120)),
+        "model.embed_tokens.weight_scale": ("F32", ()),
+        "model.embed_tokens.comfy_quant": ("U8", (29,)),
+    }
+)
 _dense["model.embed_tokens.weight"] = ("BF16", (151936, 5120))
 _target = {native_name(name): descriptor for name, descriptor in _dense.items()}
 if (
-    len(_source) != 1954 or len(_target) != 902 or len(_plain) != 551
+    len(_source) != 1954
+    or len(_target) != 902
+    or len(_plain) != 551
     or schema_sha256(_source) != SOURCE_SCHEMA_SHA256
     or schema_sha256(_target) != TARGET_SCHEMA_SHA256
     or sum(prod(shape) * 2 for _, shape in _target.values()) != TARGET_PAYLOAD_BYTES

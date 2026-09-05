@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Plan/run the fixed TE using an installed wheel inside the bounded CPU container."""
+
 from __future__ import annotations
 
 import argparse
@@ -41,14 +42,24 @@ def container_limits(source: Path, config: Path) -> dict:
 def estimate(plan) -> dict:
     cursor, header = 0, {}
     for tensor in plan.tensors:
-        header[tensor.target_name] = {"dtype": "BF16", "shape": list(tensor.shape), "data_offsets": [cursor, cursor + tensor.byte_length]}
+        header[tensor.target_name] = {
+            "dtype": "BF16",
+            "shape": list(tensor.shape),
+            "data_offsets": [cursor, cursor + tensor.byte_length],
+        }
         cursor += tensor.byte_length
     raw = json.dumps(header, sort_keys=True, separators=(",", ":")).encode()
     file_size = 8 + len(raw) + (-len(raw) % 8) + cursor
     upper = file_size + len(fileops.canonical_json(plan.to_dict())) + contract.CONFIG_BYTES + 1024**2
     if cursor != contract.TARGET_PAYLOAD_BYTES or upper > contract.MAX_OUTPUT_BYTES:
         raise ValueError("fixed TE output allocation exceeded")
-    return {"payload_bytes": cursor, "safetensors_file_bytes": file_size, "maximum_output_bytes": upper, "output_budget_bytes": contract.MAX_OUTPUT_BYTES, "free_reserve_bytes": contract.RESERVE_BYTES}
+    return {
+        "payload_bytes": cursor,
+        "safetensors_file_bytes": file_size,
+        "maximum_output_bytes": upper,
+        "output_budget_bytes": contract.MAX_OUTPUT_BYTES,
+        "free_reserve_bytes": contract.RESERVE_BYTES,
+    }
 
 
 def run(args):
@@ -79,7 +90,18 @@ def run(args):
     if free < budget["maximum_output_bytes"] + contract.RESERVE_BYTES:
         raise ValueError("TE output cannot retain12 GiB reserve")
     plan_raw = fileops.canonical_json(plan.to_dict())
-    result = {"candidate_commit": tool.source_commit, "wheel_sha256": tool.wheel_sha256, "image_id": args.image_id, "source_sha256": plan.source_sha256, "config_sha256": plan.config_sha256, "consumer": plan.consumer, "plan_content_sha256": plan.content_sha256, "plan_file_sha256": hashlib.sha256(plan_raw).hexdigest(), "target_tensor_count": len(plan.tensors), "resource_preflight": {**limits, **budget, "free_bytes_before": free}}
+    result = {
+        "candidate_commit": tool.source_commit,
+        "wheel_sha256": tool.wheel_sha256,
+        "image_id": args.image_id,
+        "source_sha256": plan.source_sha256,
+        "config_sha256": plan.config_sha256,
+        "consumer": plan.consumer,
+        "plan_content_sha256": plan.content_sha256,
+        "plan_file_sha256": hashlib.sha256(plan_raw).hexdigest(),
+        "target_tensor_count": len(plan.tensors),
+        "resource_preflight": {**limits, **budget, "free_bytes_before": free},
+    }
     if args.action == "plan":
         fileops.write_exclusive(args.plan, plan_raw)
         result["status"] = "AUTHORIZED"
@@ -87,8 +109,21 @@ def run(args):
         previous_plan, _ = fileops.read_file_pinned(args.preflight_plan)
         previous_raw, _ = fileops.read_file_pinned(args.preflight_result)
         previous = fileops.parse_json_strict(previous_raw)
-        keys = ("candidate_commit", "wheel_sha256", "image_id", "source_sha256", "config_sha256", "consumer", "plan_content_sha256", "plan_file_sha256")
-        if previous_plan != plan_raw or previous.get("status") != "AUTHORIZED" or any(previous.get(key) != result[key] for key in keys):
+        keys = (
+            "candidate_commit",
+            "wheel_sha256",
+            "image_id",
+            "source_sha256",
+            "config_sha256",
+            "consumer",
+            "plan_content_sha256",
+            "plan_file_sha256",
+        )
+        if (
+            previous_plan != plan_raw
+            or previous.get("status") != "AUTHORIZED"
+            or any(previous.get(key) != result[key] for key in keys)
+        ):
             raise ValueError("execution does not match the authorized preflight")
         publication = execute_te_dense_export(plan, output, tool=tool)
         manifest_raw, _ = fileops.read_file_pinned(publication.manifest_path)
@@ -96,8 +131,17 @@ def run(args):
         after = shutil.disk_usage(output.parent).free
         if actual_bytes > budget["maximum_output_bytes"] or after < contract.RESERVE_BYTES:
             raise ValueError("published output violated allocation or free reserve")
-        result.update(status="EXECUTED", manifest_sha256=publication.manifest_sha256, manifest_file_sha256=hashlib.sha256(manifest_raw).hexdigest(), output_bytes=actual_bytes, free_bytes_after=after)
-    result.update(elapsed_seconds=time.monotonic() - start, max_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024)
+        result.update(
+            status="EXECUTED",
+            manifest_sha256=publication.manifest_sha256,
+            manifest_file_sha256=hashlib.sha256(manifest_raw).hexdigest(),
+            output_bytes=actual_bytes,
+            free_bytes_after=after,
+        )
+    result.update(
+        elapsed_seconds=time.monotonic() - start,
+        max_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+    )
     fileops.write_exclusive(args.result, fileops.canonical_json(result))
     return result
 

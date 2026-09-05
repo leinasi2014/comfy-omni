@@ -3,6 +3,7 @@
 Arithmetic is independently expressed from the characterized E2M1/E4M3FN and
 BF16 contract. Reference/version/attribution: docs/migration/te-nvfp4-dense.md.
 """
+
 from __future__ import annotations
 
 import math
@@ -63,8 +64,13 @@ def nvfp4_row(packed: bytes, blocked_band: bytes, global_raw: bytes, *, row_in_b
         total = round_bf16(global_value * round_bf16(scale))
         for pair in range(8):
             byte = packed[block * 8 + pair]
-            struct.pack_into("<HH", output, (block * 16 + pair * 2) * 2,
-                             bf16_bits(e2m1(byte >> 4) * total), bf16_bits(e2m1(byte & 15) * total))
+            struct.pack_into(
+                "<HH",
+                output,
+                (block * 16 + pair * 2) * 2,
+                bf16_bits(e2m1(byte >> 4) * total),
+                bf16_bits(e2m1(byte & 15) * total),
+            )
     return bytes(output)
 
 

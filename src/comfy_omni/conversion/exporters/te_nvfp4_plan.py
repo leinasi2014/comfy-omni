@@ -1,4 +1,5 @@
 """Read-only fixed TE planning and held-source reauthorization."""
+
 from __future__ import annotations
 
 import hashlib
@@ -122,19 +123,29 @@ def plan_from_held(source: SafeTensorSources, config_path: Path) -> TEExportPlan
         plans.append(TETensorPlan(name, contract.native_name(name), operation, shape, prod(shape) * 2))
     targets = {item.target_name: ("BF16", item.shape) for item in plans}
     if (
-        consumed != observed.keys() or len(targets) != len(plans)
+        consumed != observed.keys()
+        or len(targets) != len(plans)
         or targets != contract.TARGET_INVENTORY
         or contract.schema_sha256(targets) != contract.TARGET_SCHEMA_SHA256
         or sum(item.byte_length for item in plans) != contract.TARGET_PAYLOAD_BYTES
     ):
         raise ContractError("TE source accounting or complete native target schema disagrees")
     draft = TEExportPlan(
-        str(source.paths[0]), str(fileops.reject_linked_ancestors(config_path)),
-        source.hashes[0], source.sizes[0], contract.CONFIG_SHA256, contract.CONFIG_BYTES,
-        contract.SOURCE_SCHEMA_SHA256, contract.TARGET_SCHEMA_SHA256, contract.TARGET_PAYLOAD_BYTES,
+        str(source.paths[0]),
+        str(fileops.reject_linked_ancestors(config_path)),
+        source.hashes[0],
+        source.sizes[0],
+        contract.CONFIG_SHA256,
+        contract.CONFIG_BYTES,
+        contract.SOURCE_SCHEMA_SHA256,
+        contract.TARGET_SCHEMA_SHA256,
+        contract.TARGET_PAYLOAD_BYTES,
         tuple(sorted(plans, key=lambda item: item.target_name)),
     )
-    return replace(draft, content_sha256=hashlib.sha256(fileops.canonical_json(draft.to_dict(include_content_sha256=False))).hexdigest())
+    return replace(
+        draft,
+        content_sha256=hashlib.sha256(fileops.canonical_json(draft.to_dict(include_content_sha256=False))).hexdigest(),
+    )
 
 
 def plan_te_dense_export(source_path: Path, config_path: Path) -> TEExportPlan:

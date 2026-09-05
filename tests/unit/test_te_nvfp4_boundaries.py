@@ -1,4 +1,5 @@
 """Behavioral failure and streaming checks against real synthetic files."""
+
 from __future__ import annotations
 
 import hashlib
@@ -19,12 +20,18 @@ from comfy_omni.domain.normalization import ToolIdentity
 TOOL = ToolIdentity("comfy-omni", "0.2.0a1", "1" * 40, "2" * 64)
 
 
-@pytest.mark.parametrize("field,value", [("consumer", "another-consumer"), ("profile", "arbitrary"), ("max_rows", 256), ("target_payload_bytes", 1)])
+@pytest.mark.parametrize(
+    "field,value",
+    [("consumer", "another-consumer"), ("profile", "arbitrary"), ("max_rows", 256), ("target_payload_bytes", 1)],
+)
 def test_rehashed_forged_plan_is_rejected_before_output(tmp_path, monkeypatch, field, value):
     source, config, tensors = write_fixture(tmp_path)
     bind_fixture(monkeypatch, source, config, tensors)
     plan = replace(plan_te_dense_export(source, config), **{field: value})
-    plan = replace(plan, content_sha256=hashlib.sha256(fileops.canonical_json(plan.to_dict(include_content_sha256=False))).hexdigest())
+    plan = replace(
+        plan,
+        content_sha256=hashlib.sha256(fileops.canonical_json(plan.to_dict(include_content_sha256=False))).hexdigest(),
+    )
     with pytest.raises(ContractError, match="authority"):
         execution.execute_te_dense_export(plan, tmp_path / "dense", tool=TOOL)
     assert not (tmp_path / "dense").exists()
@@ -46,6 +53,7 @@ def test_late_input_mutation_removes_exclusive_output(tmp_path, monkeypatch, whi
             target = source if which == "source" else config
             raw = bytearray(target.read_bytes())
             raw[-1] ^= 1
+            target.chmod(0o600)
             target.write_bytes(raw)
             changed.append(target)
         return result
@@ -98,7 +106,9 @@ def test_consumer_discriminates_blocked_nibbles_and_bf16_steps():
     scales = bytes(8 + (i * 7) % 110 for i in range(512))
     global_scale = struct.pack("<f", 1.00390625)
     actual = nvfp4_bf16_stripe(packed, scales, global_scale, rows=128, columns=64)
-    expected = b"".join(independent.nvfp4_row(packed[r * 32:(r + 1) * 32], scales, global_scale, row_in_band=r) for r in range(128))
+    expected = b"".join(
+        independent.nvfp4_row(packed[r * 32 : (r + 1) * 32], scales, global_scale, row_in_band=r) for r in range(128)
+    )
     assert actual == expected
     swapped = bytes((value >> 4) | ((value & 15) << 4) for value in packed)
     assert nvfp4_bf16_stripe(swapped, scales, global_scale, rows=128, columns=64) != expected

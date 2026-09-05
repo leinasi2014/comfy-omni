@@ -1,4 +1,5 @@
 """One fixed offline TE producer: bounded payloads, strict reread, receipt last."""
+
 from __future__ import annotations
 
 import hashlib
@@ -78,6 +79,7 @@ def execute_te_dense_export(plan: TEExportPlan, output_dir: Path, *, tool: ToolI
             stage = prepare_native_export(output_dir)
             hashes = {}
             max_chunk = 0
+
             def tracked(action):
                 def chunks():
                     nonlocal max_chunk
@@ -90,7 +92,9 @@ def execute_te_dense_export(plan: TEExportPlan, output_dir: Path, *, tool: ToolI
                         max_chunk = max(max_chunk, len(chunk))
                         yield chunk
                     hashes[action.target_name] = digest.hexdigest()
+
                 return chunks
+
             payloads = [TensorPayload(a.target_name, "BF16", a.shape, a.byte_length, tracked(a)) for a in plan.tensors]
             written = write_safetensors_file(stage.path / "model.safetensors", payloads)
             verified = verify_safetensors_file(stage.path / written.name, written.descriptors, written.sha256)
@@ -101,21 +105,36 @@ def execute_te_dense_export(plan: TEExportPlan, output_dir: Path, *, tool: ToolI
                 stage_document(stage, "config.json", config, kind="config"),
                 stage_document(stage, "export.plan.json", fileops.canonical_json(plan.to_dict()), kind="plan"),
             )
+
             def final_check():
                 _space(stage.path)
                 source.verify_unchanged()
                 verify_config()
+
             manifest = {
-                "schema": "comfy_omni.te_dense.export/v1", "component": "text_encoder",
-                "profile": contract.PROFILE, "consumer": contract.CONSUMER,
+                "schema": "comfy_omni.te_dense.export/v1",
+                "component": "text_encoder",
+                "profile": contract.PROFILE,
+                "consumer": contract.CONSUMER,
                 "historical_writer_identity_proven": False,
                 "plan_content_sha256": plan.content_sha256,
-                "source": {"size": plan.source_bytes, "sha256": plan.source_sha256, "schema_sha256": plan.source_schema_sha256},
+                "source": {
+                    "size": plan.source_bytes,
+                    "sha256": plan.source_sha256,
+                    "schema_sha256": plan.source_schema_sha256,
+                },
                 "config": {"size": plan.config_bytes, "sha256": plan.config_sha256},
-                "target": {"schema_sha256": plan.target_schema_sha256, "tensor_count": len(plan.tensors), "payload_bytes": plan.target_payload_bytes},
-                "source_tensor_count": len(source.tensors), "consumed_auxiliary_count": len(source.tensors) - len(plan.tensors),
-                "tool": tool.to_dict(), "files": [a.to_dict() for a in artifacts],
-                "tensor_sha256": hashes, "max_emitted_chunk_bytes": max_chunk,
+                "target": {
+                    "schema_sha256": plan.target_schema_sha256,
+                    "tensor_count": len(plan.tensors),
+                    "payload_bytes": plan.target_payload_bytes,
+                },
+                "source_tensor_count": len(source.tensors),
+                "consumed_auxiliary_count": len(source.tensors) - len(plan.tensors),
+                "tool": tool.to_dict(),
+                "files": [a.to_dict() for a in artifacts],
+                "tensor_sha256": hashes,
+                "max_emitted_chunk_bytes": max_chunk,
                 "numerical_semantics": "NVFP4 BF16 materialized steps; INT8 FP32 multiply then BF16",
             }
             return publish_native_export(stage, artifacts, manifest, before_manifest=final_check)

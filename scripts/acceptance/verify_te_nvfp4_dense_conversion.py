@@ -7,10 +7,10 @@ aec3263cf7344688adb46fe17659de014e8b8056 (Apache-2.0). No producer, contract mod
 Torch or upstream numerical implementation is imported. Numerical sampling is
 three full rows per NVFP4 matrix, not all-element equivalence.
 """
+
 from __future__ import annotations
 
 import argparse
-import hashlib
 import math
 import os
 import struct
@@ -37,22 +37,34 @@ HEADER_LIMIT = 4 * 1024**2
 
 
 def header(file):
-    length, = struct.unpack("<Q", file.read(0, 8))
+    (length,) = struct.unpack("<Q", file.read(0, 8))
     _require(0 < length <= HEADER_LIMIT and length <= file.size - 8, "unsafe TE header")
     document = _json(file.read(8, length))
     metadata = document.pop("__metadata__", {})
-    _require(isinstance(metadata, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in metadata.items()), "invalid TE metadata")
+    _require(
+        isinstance(metadata, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in metadata.items()),
+        "invalid TE metadata",
+    )
     _require(0 < len(document) <= 1954, "invalid TE descriptor count")
     records = {}
     for name, value in document.items():
         _require(isinstance(value, dict) and set(value) == {"dtype", "shape", "data_offsets"}, "invalid TE descriptor")
         dtype, shape, offsets = value["dtype"], value["shape"], value["data_offsets"]
         _require(isinstance(dtype, str) and dtype in {"U8", "I8", "F32", "BF16", "F8_E4M3"}, "invalid TE dtype")
-        _require(isinstance(shape, list) and len(shape) <= 8 and all(type(v) is int and 0 <= v < 2**63 for v in shape), "invalid TE shape")
-        _require(isinstance(offsets, list) and len(offsets) == 2 and all(type(v) is int for v in offsets), "invalid TE offsets")
+        _require(
+            isinstance(shape, list) and len(shape) <= 8 and all(type(v) is int and 0 <= v < 2**63 for v in shape),
+            "invalid TE shape",
+        )
+        _require(
+            isinstance(offsets, list) and len(offsets) == 2 and all(type(v) is int for v in offsets),
+            "invalid TE offsets",
+        )
         start, end = offsets
         width = {"U8": 1, "I8": 1, "F32": 4, "BF16": 2, "F8_E4M3": 1}[dtype]
-        _require(0 <= start <= end <= file.size - 8 - length and end - start == math.prod(shape) * width, "TE byte span mismatch")
+        _require(
+            0 <= start <= end <= file.size - 8 - length and end - start == math.prod(shape) * width,
+            "TE byte span mismatch",
+        )
         records[name] = {"dtype": dtype, "shape": shape, "start": start, "end": end}
     cursor = 0
     for value in sorted(records.values(), key=lambda item: (item["start"], item["end"])):
@@ -87,18 +99,36 @@ def actions_from_source(file, records, offset):
             members = {name, marker_name, prefix + ".weight_scale"}
             if name == "model.embed_tokens.weight":
                 op = "int8-f32-to-bf16"
-                _require(declaration == {"format": "int8_tensorwise"} and record["dtype"] == "I8", "wrong embedding declaration")
+                _require(
+                    declaration == {"format": "int8_tensorwise"} and record["dtype"] == "I8",
+                    "wrong embedding declaration",
+                )
             else:
                 op = "nvfp4-blocked-to-bf16"
-                _require(declaration == {"format": "nvfp4"} and record["dtype"] == "U8" and len(shape) == 2, "wrong NVFP4 declaration")
+                _require(
+                    declaration == {"format": "nvfp4"} and record["dtype"] == "U8" and len(shape) == 2,
+                    "wrong NVFP4 declaration",
+                )
                 members.add(prefix + ".weight_scale_2")
                 shape[1] *= 2
             _require(members <= records.keys(), "incomplete quantization group")
         _require(not consumed & members, "duplicate source accounting")
         consumed.update(members)
-        result.append({"source_name": name, "target_name": mapped(name), "operation": op, "shape": shape, "byte_length": math.prod(shape) * 2})
+        result.append(
+            {
+                "source_name": name,
+                "target_name": mapped(name),
+                "operation": op,
+                "shape": shape,
+                "byte_length": math.prod(shape) * 2,
+            }
+        )
     _require(consumed == records.keys(), "unconsumed source descriptor")
-    _require(Counter(x["operation"] for x in result) == {"copy-bf16": 551, "nvfp4-blocked-to-bf16": 350, "int8-f32-to-bf16": 1}, "TE operation census drift")
+    _require(
+        Counter(x["operation"] for x in result)
+        == {"copy-bf16": 551, "nvfp4-blocked-to-bf16": 350, "int8-f32-to-bf16": 1},
+        "TE operation census drift",
+    )
     return sorted(result, key=lambda item: item["target_name"])
 
 
@@ -110,9 +140,15 @@ def host_projection(records):
         else:
             _require(name.startswith("model.language_model."), "host would ignore checkpoint name")
             slot, shard = "text_model." + name[21:], None
-            for source, target, value in (("q_proj.weight", "qkv_proj.weight", "q"), ("k_proj.weight", "qkv_proj.weight", "k"), ("v_proj.weight", "qkv_proj.weight", "v"), ("gate_proj.weight", "gate_up_proj.weight", 0), ("up_proj.weight", "gate_up_proj.weight", 1)):
+            for source, target, value in (
+                ("q_proj.weight", "qkv_proj.weight", "q"),
+                ("k_proj.weight", "qkv_proj.weight", "k"),
+                ("v_proj.weight", "qkv_proj.weight", "v"),
+                ("gate_proj.weight", "gate_up_proj.weight", 0),
+                ("up_proj.weight", "gate_up_proj.weight", 1),
+            ):
                 if slot.endswith("." + source):
-                    slot, shard = slot[:-len(source)] + target, value
+                    slot, shard = slot[: -len(source)] + target, value
                     break
         shape = list(record["shape"])
         if shard is None:
@@ -128,9 +164,20 @@ def host_projection(records):
             else:
                 slots[slot] = {"dtype": "BF16", "shape": shape}
     _require(len(slots) == 752 and len(groups) == 100, "host slot census drift")
-    _require(all(shards == ({"q", "k", "v"} if key.endswith("qkv_proj.weight") else {0, 1}) for key, shards in groups.items()), "incomplete fused host parameter")
+    _require(
+        all(
+            shards == ({"q", "k", "v"} if key.endswith("qkv_proj.weight") else {0, 1}) for key, shards in groups.items()
+        ),
+        "incomplete fused host parameter",
+    )
     _require(_schema(slots) == HOST_SCHEMA, "host shape projection drift")
-    return {"logical_parameter_count": 752, "fused_qkv_groups": 50, "fused_gate_up_groups": 50, "schema_sha256": HOST_SCHEMA, "actual_host_loaded": False}
+    return {
+        "logical_parameter_count": 752,
+        "fused_qkv_groups": 50,
+        "fused_gate_up_groups": 50,
+        "schema_sha256": HOST_SCHEMA,
+        "actual_host_loaded": False,
+    }
 
 
 def numerical(source, src, src_offset, output, dst, dst_offset, actions):
@@ -143,7 +190,10 @@ def numerical(source, src, src_offset, output, dst, dst_offset, actions):
         if action["operation"] == "copy-bf16":
             for start in range(0, action["byte_length"], CHUNK):
                 count = min(CHUNK, action["byte_length"] - start)
-                _require(source.read(source_start + start, count) == output.read(target_start + start, count), "BF16 passthrough byte mismatch")
+                _require(
+                    source.read(source_start + start, count) == output.read(target_start + start, count),
+                    "BF16 passthrough byte mismatch",
+                )
             copied += 1
             copied_bytes += action["byte_length"]
             continue
@@ -160,13 +210,23 @@ def numerical(source, src, src_offset, output, dst, dst_offset, actions):
                 expected = int8_values(source.read(source_start + row * cols, cols), scalar)
             else:
                 band = row // 128 * 128
-                scales = source.read(src_offset + src[prefix + ".weight_scale"]["start"] + band * cols // 16, 128 * cols // 16)
-                expected = nvfp4_row(source.read(source_start + row * cols // 2, cols // 2), scales, scalar, row_in_band=row % 128)
+                scales = source.read(
+                    src_offset + src[prefix + ".weight_scale"]["start"] + band * cols // 16, 128 * cols // 16
+                )
+                expected = nvfp4_row(
+                    source.read(source_start + row * cols // 2, cols // 2), scales, scalar, row_in_band=row % 128
+                )
             actual = output.read(target_start + row * cols * 2, cols * 2)
             _require(actual == expected, f"exact BF16 numerical mismatch in {target}, row {row}")
             sampled_values += cols
         comparisons.append({"target_name": target, "rows": selected, "columns_per_row": cols})
-    return {"all_plain_tensors_byte_equal": copied, "plain_bytes_compared": copied_bytes, "sampled_numeric_values": sampled_values, "sampled_matrices": comparisons, "all_numeric_elements_verified": False}
+    return {
+        "all_plain_tensors_byte_equal": copied,
+        "plain_bytes_compared": copied_bytes,
+        "sampled_numeric_values": sampled_values,
+        "sampled_matrices": comparisons,
+        "all_numeric_elements_verified": False,
+    }
 
 
 def verify(args):
@@ -177,39 +237,116 @@ def verify(args):
     with ExitStack() as stack:
         source = stack.enter_context(_held(args.source, SOURCE_SIZE))
         config = stack.enter_context(_held(args.config, CONFIG_SIZE))
-        files = {name: stack.enter_context(_held(root / name, 50 * 1024**3 if name == "model.safetensors" else HEADER_LIMIT)) for name in expected_names}
+        files = {
+            name: stack.enter_context(_held(root / name, 50 * 1024**3 if name == "model.safetensors" else HEADER_LIMIT))
+            for name in expected_names
+        }
         _require((source.size, source.sha256) == (SOURCE_SIZE, SOURCE_SHA), "fixed source identity mismatch")
         _require((config.size, config.sha256) == (CONFIG_SIZE, CONFIG_SHA), "fixed config identity mismatch")
-        _require(files["config.json"].sha256 == config.sha256 and files["config.json"].size == config.size, "published config differs")
+        _require(
+            files["config.json"].sha256 == config.sha256 and files["config.json"].size == config.size,
+            "published config differs",
+        )
         src, src_offset = header(source)
         dst, dst_offset = header(files["model.safetensors"])
         _require(len(src) == 1954 and _schema(src) == SOURCE_SCHEMA, "complete source schema drift")
         _require(len(dst) == 902 and _schema(dst) == TARGET_SCHEMA, "complete native target schema drift")
-        _require(all(r["dtype"] == "BF16" for r in dst.values()) and sum(r["end"] - r["start"] for r in dst.values()) == TARGET_BYTES, "dense output representation drift")
+        _require(
+            all(r["dtype"] == "BF16" for r in dst.values())
+            and sum(r["end"] - r["start"] for r in dst.values()) == TARGET_BYTES,
+            "dense output representation drift",
+        )
         actions = actions_from_source(source, src, src_offset)
         plan, manifest = files["export.plan.json"].document(), files["manifest.json"].document()
         plan_sha = plan.pop("content_sha256")
         manifest_sha = manifest.pop("manifest_sha256")
         _require(plan_sha == _digest(plan) and manifest_sha == _digest(manifest), "document content digest mismatch")
-        expected_plan = {"source_path": str(source.path), "config_path": str(config.path), "source_sha256": SOURCE_SHA, "source_bytes": SOURCE_SIZE, "config_sha256": CONFIG_SHA, "config_bytes": CONFIG_SIZE, "source_schema_sha256": SOURCE_SCHEMA, "target_schema_sha256": TARGET_SCHEMA, "target_payload_bytes": TARGET_BYTES, "tensors": actions, "profile": PROFILE, "consumer": CONSUMER, "max_rows": 128, "schema": "comfy_omni.te_dense.plan/v1"}
+        expected_plan = {
+            "source_path": str(source.path),
+            "config_path": str(config.path),
+            "source_sha256": SOURCE_SHA,
+            "source_bytes": SOURCE_SIZE,
+            "config_sha256": CONFIG_SHA,
+            "config_bytes": CONFIG_SIZE,
+            "source_schema_sha256": SOURCE_SCHEMA,
+            "target_schema_sha256": TARGET_SCHEMA,
+            "target_payload_bytes": TARGET_BYTES,
+            "tensors": actions,
+            "profile": PROFILE,
+            "consumer": CONSUMER,
+            "max_rows": 128,
+            "schema": "comfy_omni.te_dense.plan/v1",
+        }
         _require(plan == expected_plan, "plan differs from independent source interpretation")
-        _require(manifest["schema"] == "comfy_omni.te_dense.export/v1" and manifest["component"] == "text_encoder" and manifest["profile"] == PROFILE and manifest["consumer"] == CONSUMER, "manifest consumer drift")
-        _require(manifest["historical_writer_identity_proven"] is False and manifest["plan_content_sha256"] == plan_sha, "false writer or plan binding")
-        _require(manifest["source"] == {"size": SOURCE_SIZE, "sha256": SOURCE_SHA, "schema_sha256": SOURCE_SCHEMA} and manifest["config"] == {"size": CONFIG_SIZE, "sha256": CONFIG_SHA}, "manifest input binding drift")
-        _require(manifest["target"] == {"schema_sha256": TARGET_SCHEMA, "tensor_count": 902, "payload_bytes": TARGET_BYTES}, "manifest target binding drift")
-        _require(manifest["source_tensor_count"] == 1954 and manifest["consumed_auxiliary_count"] == 1052, "manifest accounting drift")
-        _require(manifest["tool"] == {"distribution": "comfy-omni", "version": args.expected_version, "source_commit": args.expected_commit, "wheel_sha256": args.expected_wheel_sha256}, "tool identity mismatch")
+        _require(
+            manifest["schema"] == "comfy_omni.te_dense.export/v1"
+            and manifest["component"] == "text_encoder"
+            and manifest["profile"] == PROFILE
+            and manifest["consumer"] == CONSUMER,
+            "manifest consumer drift",
+        )
+        _require(
+            manifest["historical_writer_identity_proven"] is False and manifest["plan_content_sha256"] == plan_sha,
+            "false writer or plan binding",
+        )
+        _require(
+            manifest["source"] == {"size": SOURCE_SIZE, "sha256": SOURCE_SHA, "schema_sha256": SOURCE_SCHEMA}
+            and manifest["config"] == {"size": CONFIG_SIZE, "sha256": CONFIG_SHA},
+            "manifest input binding drift",
+        )
+        _require(
+            manifest["target"] == {"schema_sha256": TARGET_SCHEMA, "tensor_count": 902, "payload_bytes": TARGET_BYTES},
+            "manifest target binding drift",
+        )
+        _require(
+            manifest["source_tensor_count"] == 1954 and manifest["consumed_auxiliary_count"] == 1052,
+            "manifest accounting drift",
+        )
+        _require(
+            manifest["tool"]
+            == {
+                "distribution": "comfy-omni",
+                "version": args.expected_version,
+                "source_commit": args.expected_commit,
+                "wheel_sha256": args.expected_wheel_sha256,
+            },
+            "tool identity mismatch",
+        )
         entries = {item["name"]: item for item in manifest["files"]}
-        _require(len(entries) == len(manifest["files"]) == 3 and set(entries) == expected_names - {"manifest.json"}, "manifest file coverage drift")
+        _require(
+            len(entries) == len(manifest["files"]) == 3 and set(entries) == expected_names - {"manifest.json"},
+            "manifest file coverage drift",
+        )
         for name, entry in entries.items():
-            _require((entry["size"], entry["sha256"]) == (files[name].size, files[name].sha256), "manifest file identity mismatch")
+            _require(
+                (entry["size"], entry["sha256"]) == (files[name].size, files[name].sha256),
+                "manifest file identity mismatch",
+            )
         _require(set(manifest["tensor_sha256"]) == dst.keys(), "tensor digest coverage drift")
         output = files["model.safetensors"]
         for name, record in dst.items():
-            _require(output.hash_range(dst_offset + record["start"], record["end"] - record["start"]) == manifest["tensor_sha256"][name], "target tensor digest mismatch")
+            _require(
+                output.hash_range(dst_offset + record["start"], record["end"] - record["start"])
+                == manifest["tensor_sha256"][name],
+                "target tensor digest mismatch",
+            )
         semantics = numerical(source, src, src_offset, output, dst, dst_offset, actions)
         projection = host_projection(dst)
-        result = {"schema": "comfy-omni.acceptance.te-dense-verification/v1", "status": "VERIFIED", "candidate_commit": args.expected_commit, "wheel_sha256": args.expected_wheel_sha256, "consumer": CONSUMER, "source_sha256": source.sha256, "config_sha256": config.sha256, "plan_content_sha256": plan_sha, "manifest_sha256": manifest_sha, "output_files": {n: {"size": f.size, "sha256": f.sha256} for n, f in files.items()}, "target_schema_sha256": TARGET_SCHEMA, "host_projection": projection, **semantics}
+        result = {
+            "schema": "comfy-omni.acceptance.te-dense-verification/v1",
+            "status": "VERIFIED",
+            "candidate_commit": args.expected_commit,
+            "wheel_sha256": args.expected_wheel_sha256,
+            "consumer": CONSUMER,
+            "source_sha256": source.sha256,
+            "config_sha256": config.sha256,
+            "plan_content_sha256": plan_sha,
+            "manifest_sha256": manifest_sha,
+            "output_files": {n: {"size": f.size, "sha256": f.sha256} for n, f in files.items()},
+            "target_schema_sha256": TARGET_SCHEMA,
+            "host_projection": projection,
+            **semantics,
+        }
     _require(set(_tree(root)) == expected_names, "component tree changed during verification")
     result["elapsed_seconds"] = time.monotonic() - start
     return result
@@ -224,7 +361,10 @@ def main():
     parser.add_argument("--expected-version", default="0.2.0a1")
     args = parser.parse_args()
     result_path = _safe_path(args.result, missing=True)
-    _require(not result_path.exists() and not result_path.is_relative_to(_safe_path(args.output)), "result must be fresh outside the component")
+    _require(
+        not result_path.exists() and not result_path.is_relative_to(_safe_path(args.output)),
+        "result must be fresh outside the component",
+    )
     result = verify(args)
     with result_path.open("xb") as stream:
         stream.write(_canonical(result))

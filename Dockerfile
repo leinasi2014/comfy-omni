@@ -26,7 +26,8 @@ WORKDIR /workspace
 
 FROM python-base AS development
 
-COPY pyproject.toml setup.py README.md LICENSE ./
+COPY pyproject.toml setup.py README.md LICENSE THIRD_PARTY_NOTICES.md ./
+COPY third_party ./third_party
 COPY src ./src
 RUN python -m pip install --no-cache-dir -e ".[dev]"
 COPY . .
@@ -48,7 +49,8 @@ RUN python -m ruff format --check src tests scripts \
 
 FROM python-base AS package-builder
 
-COPY pyproject.toml setup.py README.md LICENSE ./
+COPY pyproject.toml setup.py README.md LICENSE THIRD_PARTY_NOTICES.md ./
+COPY third_party ./third_party
 COPY src ./src
 RUN python -m pip install --no-cache-dir build twine \
     && python -m build --outdir /dist \
@@ -94,7 +96,8 @@ RUN case "${COMFY_OMNI_BUILD_COMMIT}" in \
     && case "${COMFY_OMNI_BUILD_DIRTY}" in 0|1) ;; *) exit 2 ;; esac
 
 WORKDIR /opt/comfy-omni
-COPY pyproject.toml setup.py README.md LICENSE ./
+COPY pyproject.toml setup.py README.md LICENSE THIRD_PARTY_NOTICES.md ./
+COPY third_party ./third_party
 COPY src ./src
 RUN python3 -m pip install --no-cache-dir --no-deps . \
     && mkdir /work \

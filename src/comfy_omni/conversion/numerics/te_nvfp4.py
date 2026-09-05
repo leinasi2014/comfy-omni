@@ -6,6 +6,7 @@ float_utils.py blob29077a7b5375a596eab64bab449bfc2e842beb9d.
 Apache-2.0 and torchao BSD-3-Clause attribution: THIRD_PARTY_NOTICES.md.
 The independent acceptance oracle does not import this implementation.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -29,7 +30,13 @@ def _bytes(torch, output) -> bytes:
 
 
 def nvfp4_bf16_stripe(packed: bytes, block_scales: bytes, global_scale: bytes, *, rows: int, columns: int) -> bytes:
-    if type(rows) is not int or type(columns) is not int or not 1 <= rows <= 128 or not 1 <= columns <= 25600 or columns % 64:
+    if (
+        type(rows) is not int
+        or type(columns) is not int
+        or not 1 <= rows <= 128
+        or not 1 <= columns <= 25600
+        or columns % 64
+    ):
         raise ContractError("invalid bounded NVFP4 stripe dimensions")
     if len(packed) != rows * columns // 2 or len(block_scales) != 128 * (columns // 16) or len(global_scale) != 4:
         raise ContractError("NVFP4 stripe byte lengths disagree with dimensions")
@@ -46,7 +53,10 @@ def nvfp4_bf16_stripe(packed: bytes, block_scales: bytes, global_scale: bytes, *
         if not torch.isfinite(total_scale).all().item():
             raise ContractError("NVFP4 scales contain nonfinite values")
         codes = torch.stack((q >> 4, q & 15), dim=-1).reshape(rows, columns)
-        lut = torch.tensor((0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0), dtype=torch.bfloat16)
+        lut = torch.tensor(
+            (0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0),
+            dtype=torch.bfloat16,
+        )
         values = lut[codes.to(torch.int64)].reshape(rows, columns // 16, 16)
         output = (values * total_scale.unsqueeze(-1)).reshape(rows, columns)
         return _bytes(torch, output)

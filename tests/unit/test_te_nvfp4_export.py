@@ -1,4 +1,5 @@
 """Complete synthetic TE inventory; values are generated, never model samples."""
+
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +12,6 @@ import pytest
 from comfy_omni.artifacts.safetensors_writer import TensorPayload, write_safetensors_file
 from comfy_omni.artifacts.sources import SafeTensorSources
 from comfy_omni.contracts import te_nvfp4 as contract
-from comfy_omni.contracts.models import ContractError
 from comfy_omni.conversion.exporters import te_nvfp4 as execution
 from comfy_omni.conversion.exporters.te_nvfp4_plan import plan_te_dense_export
 from comfy_omni.domain.normalization import ToolIdentity
@@ -21,10 +21,22 @@ def fixture_tensors():
     tensors = {}
     for layer in range(50):
         base = f"model.layers.{layer}"
-        for role in ("self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.o_proj", "mlp.gate_proj", "mlp.up_proj", "mlp.down_proj"):
+        for role in (
+            "self_attn.q_proj",
+            "self_attn.k_proj",
+            "self_attn.v_proj",
+            "self_attn.o_proj",
+            "mlp.gate_proj",
+            "mlp.up_proj",
+            "mlp.down_proj",
+        ):
             name = f"{base}.{role}"
             tensors[name + ".weight"] = ("U8", (128, 32), bytes((i * 17 + layer) % 256 for i in range(4096)))
-            tensors[name + ".weight_scale"] = ("F8_E4M3", (128, 4), bytes(8 + (i * 7 + layer) % 110 for i in range(512)))
+            tensors[name + ".weight_scale"] = (
+                "F8_E4M3",
+                (128, 4),
+                bytes(8 + (i * 7 + layer) % 110 for i in range(512)),
+            )
             tensors[name + ".weight_scale_2"] = ("F32", (), struct.pack("<f", 1.00390625))
             marker = b'{"format": "nvfp4"}'
             tensors[name + ".comfy_quant"] = ("U8", (len(marker),), marker)
@@ -53,7 +65,13 @@ def fixture_tensors():
 def write_fixture(tmp_path: Path, tensors=None):
     tensors = fixture_tensors() if tensors is None else tensors
     source = tmp_path / "synthetic.safetensors"
-    write_safetensors_file(source, [TensorPayload(n, dtype, shape, len(raw), lambda raw=raw: iter((raw,))) for n, (dtype, shape, raw) in sorted(tensors.items())])
+    write_safetensors_file(
+        source,
+        [
+            TensorPayload(n, dtype, shape, len(raw), lambda raw=raw: iter((raw,)))
+            for n, (dtype, shape, raw) in sorted(tensors.items())
+        ],
+    )
     config = tmp_path / "config.json"
     config.write_bytes(b'{"synthetic_complete_te":true}\n')
     return source, config, tensors
@@ -69,10 +87,14 @@ def bind_fixture(monkeypatch, source, config, tensors):
             shape = (shape[0], shape[1] * 2)
         target[contract.native_name(name)] = ("BF16", shape)
     for key, value in {
-        "SOURCE_INVENTORY": inventory, "SOURCE_SCHEMA_SHA256": contract.schema_sha256(inventory),
-        "TARGET_INVENTORY": target, "TARGET_SCHEMA_SHA256": contract.schema_sha256(target),
-        "SOURCE_BYTES": source.stat().st_size, "SOURCE_SHA256": hashlib.sha256(source.read_bytes()).hexdigest(),
-        "CONFIG_BYTES": config.stat().st_size, "CONFIG_SHA256": hashlib.sha256(config.read_bytes()).hexdigest(),
+        "SOURCE_INVENTORY": inventory,
+        "SOURCE_SCHEMA_SHA256": contract.schema_sha256(inventory),
+        "TARGET_INVENTORY": target,
+        "TARGET_SCHEMA_SHA256": contract.schema_sha256(target),
+        "SOURCE_BYTES": source.stat().st_size,
+        "SOURCE_SHA256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "CONFIG_BYTES": config.stat().st_size,
+        "CONFIG_SHA256": hashlib.sha256(config.read_bytes()).hexdigest(),
         "TARGET_PAYLOAD_BYTES": sum(__import__("math").prod(shape) * 2 for _, shape in target.values()),
     }.items():
         monkeypatch.setattr(contract, key, value)
@@ -90,8 +112,14 @@ def oracle():
 def test_frozen_real_descriptor_authority():
     assert len(contract.SOURCE_INVENTORY) == 1954
     assert len(contract.TARGET_INVENTORY) == 902
-    assert contract.schema_sha256(contract.SOURCE_INVENTORY) == "807a68e6a06b2bd7f2736aea15b5ef111be8929495d98b9a9b517afd042c3c29"
-    assert contract.schema_sha256(contract.TARGET_INVENTORY) == "81262d6f94f41d39c4e1ae0ab0190a8b209f81f62eda3226a89419a11cee8011"
+    assert (
+        contract.schema_sha256(contract.SOURCE_INVENTORY)
+        == "807a68e6a06b2bd7f2736aea15b5ef111be8929495d98b9a9b517afd042c3c29"
+    )
+    assert (
+        contract.schema_sha256(contract.TARGET_INVENTORY)
+        == "81262d6f94f41d39c4e1ae0ab0190a8b209f81f62eda3226a89419a11cee8011"
+    )
 
 
 def test_fixed_te_can_plan_the_complete_small_component(tmp_path, monkeypatch):
@@ -110,7 +138,9 @@ def test_complete_component_streams_exact_bytes_and_preserves_all_plain_tensors(
     bind_fixture(monkeypatch, source, config, tensors)
     source_digest = hashlib.sha256(source.read_bytes()).hexdigest()
     plan = plan_te_dense_export(source, config)
-    result = execution.execute_te_dense_export(plan, tmp_path / "dense", tool=ToolIdentity("comfy-omni", "0.2.0a1", "1" * 40, "2" * 64))
+    result = execution.execute_te_dense_export(
+        plan, tmp_path / "dense", tool=ToolIdentity("comfy-omni", "0.2.0a1", "1" * 40, "2" * 64)
+    )
     independent = oracle()
     with SafeTensorSources([result.output_dir / "model.safetensors"]) as output:
         assert len(output.tensors) == 902
@@ -122,7 +152,15 @@ def test_complete_component_streams_exact_bytes_and_preserves_all_plain_tensors(
             elif dtype == "I8":
                 expected = independent.int8_values(raw, tensors[module + ".weight_scale"][2])
             else:
-                expected = b"".join(independent.nvfp4_row(raw[row * shape[1]:(row + 1) * shape[1]], tensors[module + ".weight_scale"][2], tensors[module + ".weight_scale_2"][2], row_in_band=row) for row in range(shape[0]))
+                expected = b"".join(
+                    independent.nvfp4_row(
+                        raw[row * shape[1] : (row + 1) * shape[1]],
+                        tensors[module + ".weight_scale"][2],
+                        tensors[module + ".weight_scale_2"][2],
+                        row_in_band=row,
+                    )
+                    for row in range(shape[0])
+                )
             assert output.read_raw(output.tensors[action.target_name]) == expected
     assert (result.output_dir / "config.json").read_bytes() == config.read_bytes()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_digest

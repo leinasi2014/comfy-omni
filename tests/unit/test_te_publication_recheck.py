@@ -1,4 +1,5 @@
 """Late source changes must fail before the commit marker, after output reread."""
+
 from pathlib import Path
 
 import pytest
