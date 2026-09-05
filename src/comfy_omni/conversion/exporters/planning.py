@@ -12,9 +12,20 @@ from dataclasses import replace
 from math import prod
 
 from comfy_omni.artifacts import fileops
+from comfy_omni.contracts.beta4 import (
+    BETA4_SOURCE_BYTES,
+    BETA4_SOURCE_RECORD,
+    BETA4_SOURCE_SHA256,
+    BETA4_SOURCE_TEMPLATE,
+    BETA4_TARGET_INVENTORY,
+    BETA4_TARGET_NAME,
+    BETA4_TARGET_PAYLOAD_BYTES,
+    BETA4_TARGET_SCHEMA_SHA256,
+)
 from comfy_omni.contracts.conversion import (
     EXPORT_SCHEMA,
     NATIVE_EXPORT_PROFILES,
+    PROFILE_BETA4_DENSE_BF16,
     PROFILE_DENSE_BF16_ONLINE_INT8,
     NativeExportProfile,
 )
@@ -93,6 +104,16 @@ def _validate_authority(
     template: ArchitectureTemplate,
     profile: NativeExportProfile,
 ) -> tuple[str, str | None]:
+    if record.name == BETA4_SOURCE_RECORD.name and profile.name != PROFILE_BETA4_DENSE_BF16:
+        _fail("beta4 source requires its explicit dense BF16 profile", "profile")
+    if profile.name == PROFILE_BETA4_DENSE_BF16:
+        if record != BETA4_SOURCE_RECORD or template != BETA4_SOURCE_TEMPLATE:
+            _fail("beta4 requires its exact compiled source authority", "contract-authorization")
+        if len(report.files) != 1 or (report.files[0].sha256, report.files[0].size) != (
+            BETA4_SOURCE_SHA256,
+            BETA4_SOURCE_BYTES,
+        ):
+            _fail("beta4 source size or SHA256 is not the fixed asset", "source-binding")
     contract = record.contract
     if contract.schema_sha256 is None:
         _fail("source contract has no exact schema authorization", "contract-authorization", contract=contract.name)
@@ -316,6 +337,15 @@ def build_native_export_plan(
     origin, snapshot_file_sha256 = _validate_authority(report, record, template, profile)
     qkv = _qkv_plan(profile)
     actions = _build_actions(report, qkv)
+    if profile.name == PROFILE_BETA4_DENSE_BF16:
+        observed = {
+            item.target_name: (item.target_dtype, item.shape) for item in actions if item.target_name is not None
+        }
+        if (
+            observed != BETA4_TARGET_INVENTORY
+            or sum(item.target_bytes for item in actions) != BETA4_TARGET_PAYLOAD_BYTES
+        ):
+            _fail("beta4 output disagrees with the exact 534-tensor target contract", "target-authorization")
     shards = _assign_shards(actions, max_shard_bytes)
     target_actions = tuple(item for item in actions if item.target_name is not None)
     largest = max(item.target_bytes for item in target_actions)
@@ -343,6 +373,8 @@ def build_native_export_plan(
         runtime_ignored_layers=profile.runtime_ignored_layers,
         payload_semantics=profile.payload_semantics,
         content_sha256="",
+        target_contract=BETA4_TARGET_NAME if profile.name == PROFILE_BETA4_DENSE_BF16 else None,
+        target_schema_sha256=BETA4_TARGET_SCHEMA_SHA256 if profile.name == PROFILE_BETA4_DENSE_BF16 else None,
     )
     content_sha256 = hashlib.sha256(fileops.canonical_json(draft.to_dict(include_content_sha256=False))).hexdigest()
     return replace(draft, content_sha256=content_sha256)
