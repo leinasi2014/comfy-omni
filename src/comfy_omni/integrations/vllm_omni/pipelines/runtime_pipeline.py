@@ -79,6 +79,24 @@ class H3ComfyMiniMaxH3Pipeline(OfficialMiniMaxH3Pipeline):
             )
         package_root = _resolve_package_root(Path(model_path))
         self.comfy_omni_package = validate_runtime_package(package_root)
+        # Hybrid8 dense form (E4 Ref2VA ConvRot export / 10Eros hybrid8 plain):
+        # the official pipeline only builds the old-form transformer, so the
+        # hybrid8 tree substitutes through the scoped construction when the
+        # transformer census carries the hybrid8 signature. The package
+        # contract itself was already verified above.
+        try:
+            from comfy_omni.integrations.vllm_omni.pipelines.dense_hybrid8 import (
+                construct_dense_pipeline,
+                discover_hybrid8_dit_form,
+            )
+
+            form = discover_hybrid8_dit_form(Path(model_path))
+        except ImportError:  # host-only module unavailable (offline/stub context)
+            form = None
+        if form is not None:
+            built = construct_dense_pipeline(od_config, prefix)
+            self.__dict__.update(built.__dict__)
+            return
         super().__init__(od_config=od_config, prefix=prefix)
 
 

@@ -1,206 +1,228 @@
-"""Fail-closed LoRA compatibility preflight for issue #12 slice 1.
+"""LoRA candidate compatibility preflight (fail-closed verdicts).
 
-``preflight_candidate`` maps one pinned LoRA candidate against a published runtime
-package and returns an immutable :class:`LoRACompatibilityVerdict`.  Every import of
-the migrated legacy oracle modules (:mod:`comfy_omni.conversion.lora`) is deferred
-into function bodies so that importing this module never loads Torch, vLLM, or
-FastAPI and never touches the migrated code at import time.
+Stage order (each failure returns immediately):
+
+1. ``candidate-pin``       -- candidate SHA256 + byte size must match the pinned asset
+2. ``candidate-census``    -- every tensor is BF16 ``lora_A/lora_B`` with matched ranks
+3. ``candidate-profile``   -- metadata must carry the pinned Comfy Turbo-V4 fold profile
+4. ``target-mapping``      -- every target module must resolve to the H3 module table
+5. ``base-representation`` -- the transformer base must be a bindable marker-free dense form
+6. ``offline-fold-oracle`` -- the pinned reference-fold micro oracle must pass
+
+A ``SUPPORTED`` verdict requires every stage to pass; anything else is
+``UNSUPPORTED`` with an exact ``reason_code`` and evidence, and the candidate
+and package are never mutated.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import struct
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
-from comfy_omni.artifacts.safetensors import read_safetensors_header_stream
-from comfy_omni.conversion.oracle.contract import (
-    BASE_REPRESENTATION_UNBINDABLE,
-    CANDIDATE_PIN_MISMATCH,
-    CANDIDATE_PROFILE_UNSUPPORTED,
-    CANDIDATE_TENSOR_CENSUS_MISMATCH,
-    COMFY_OMNI_LORA_COMPATIBILITY_SCHEMA,
-    OFFLINE_FOLD_ORACLE_NOT_PASSED,
-    ORACLE_BASE_CONTRACT_NOT_BINDING,
-    SUPPORTED,
-    TARGET_MODULE_MAPPING_UNRESOLVED,
-    UNSUPPORTED,
-    LoRACompatibilityVerdict,
+from comfy_omni.conversion.oracle import contract
+
+COMFY_OMNI_LORA_COMPATIBILITY_SCHEMA = "comfy-omni.lora-compatibility/v1"
+SUPPORTED = "SUPPORTED"
+UNSUPPORTED = "UNSUPPORTED"
+
+_PROFILE_APPLICATION = "W_eff = W + lora_B @ lora_A"
+_PROFILE_BASE_MODEL = "MiniMax-H3"
+_PROFILE_DTYPE = "bfloat16"
+_PROFILE_SAMPLER_STEPS = "4"
+_PROFILE_OUTPUTS = frozenset({None, "turbo-v4-s12-a3"})
+
+#: Known H3 LoRA target modules (prefix after ``diffusion_model.``).
+_KNOWN_MODULE_PREFIXES = (
+    "video_patch_proj",
+    "audio_patch_proj",
+    "condition_proj",
+    "final_layer.adaln_proj.linear",
+    "final_layer.video_out",
+    "final_layer.audio_out",
+    "token_refiner.blocks.0.attn.qkv_proj",
+    "token_refiner.blocks.0.attn.out_proj",
+    "token_refiner.blocks.0.mlp.fc1",
+    "token_refiner.blocks.0.mlp.fc2",
+    "token_refiner.blocks.1.attn.qkv_proj",
+    "token_refiner.blocks.1.attn.out_proj",
+    "token_refiner.blocks.1.mlp.fc1",
+    "token_refiner.blocks.1.mlp.fc2",
 )
-
-__all__ = [
-    "COMFY_OMNI_LORA_COMPATIBILITY_SCHEMA",
-    "SUPPORTED",
-    "UNSUPPORTED",
-    "CANDIDATE_PIN_MISMATCH",
-    "CANDIDATE_PROFILE_UNSUPPORTED",
-    "CANDIDATE_TENSOR_CENSUS_MISMATCH",
-    "TARGET_MODULE_MAPPING_UNRESOLVED",
-    "BASE_REPRESENTATION_UNBINDABLE",
-    "ORACLE_BASE_CONTRACT_NOT_BINDING",
-    "OFFLINE_FOLD_ORACLE_NOT_PASSED",
-    "LoRACompatibilityVerdict",
-    "preflight_candidate",
-]
-
-_TURBO_V4_PROFILE_METADATA = {
-    "application": "W_eff = W + lora_B @ lora_A",
-    "base_model": "MiniMax-H3",
-    "dtype": "bfloat16",
-    "sampler_steps": "4",
-}
-_COMBAT_V2_PROFILE_METADATA = {
-    "ss_base_model_version": "minimax_h3",
-    "ss_output_name": "doV2_copy",
-    "format": "pt",
-}
-
-
-def _unsupported(
-    candidate_id: str,
-    reason_code: str,
-    *,
-    stage: str,
-    **evidence: Any,
-) -> LoRACompatibilityVerdict:
-    return LoRACompatibilityVerdict(
-        candidate_id,
-        UNSUPPORTED,
-        reason_code,
-        {"stage": stage, **evidence},
+for _i in range(50):
+    _KNOWN_MODULE_PREFIXES += (
+        f"blocks.{_i}.attn.qkv_proj",
+        f"blocks.{_i}.attn.out_proj",
+        f"blocks.{_i}.mlp.fc1",
+        f"blocks.{_i}.mlp.fc2",
+        f"blocks.{_i}.adaln_proj.linear",
     )
 
 
-def _supported(candidate_id: str, **evidence: Any) -> LoRACompatibilityVerdict:
-    return LoRACompatibilityVerdict(candidate_id, SUPPORTED, None, evidence)
+class PreflightError(RuntimeError):
+    """Internal fail-closed error; callers convert to verdicts."""
 
 
-def _sha256_file(path: Path) -> str:
-    hasher = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
+@dataclass
+class OracleOutcome:
+    passed: bool
+    detail: str = ""
 
 
-def _pins_match(path: Path, pinned_sha256: str, pinned_bytes: int) -> bool:
-    if path.stat().st_size != pinned_bytes:
-        return False
-    return _sha256_file(path) == pinned_sha256
+@dataclass
+class LoRACompatibilityVerdict:
+    candidate_id: str
+    verdict: str
+    reason_code: str | None
+    evidence: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": COMFY_OMNI_LORA_COMPATIBILITY_SCHEMA,
+            "candidate_id": self.candidate_id,
+            "status": self.verdict,
+            "reason_code": self.reason_code,
+            "evidence": self.evidence,
+        }
 
 
-def _read_candidate_census(path: Path) -> tuple[dict[str, str], tuple[Any, ...], int]:
-    size = path.stat().st_size
-    with path.open("rb") as stream:
-        metadata, tensors, header_length = read_safetensors_header_stream(stream, path, size)
-    return metadata, tensors, header_length
-
-
-def _bind_profile(metadata: dict[str, str]) -> str | None:
-    if all(metadata.get(key) == value for key, value in _TURBO_V4_PROFILE_METADATA.items()):
-        return "TURBO_V4"
-    if all(metadata.get(key) == value for key, value in _COMBAT_V2_PROFILE_METADATA.items()):
-        return "COMBAT_V2"
-    return None
-
-
-def _bind_target_module_mapping(tensors: tuple[Any, ...]) -> list[tuple[Any, str, str]] | None:
-    """Bind every candidate tensor to a known Turbo V4/Combat V2 module + side.
-
-    Returns a list of ``(tensor, module, side)`` triples, or ``None`` if any tensor
-    cannot be mapped (which the caller surfaces as ``TARGET_MODULE_MAPPING_UNRESOLVED``).
-    """
-    from comfy_omni.conversion.lora.normalize import _expected_modules, _module_and_side, _target_name
-
-    expected_modules = _expected_modules()
-    mapping: list[tuple[Any, str, str]] = []
-    for tensor in tensors:
-        try:
-            target = _target_name(tensor.name)
-            module, side = _module_and_side(target)
-        except ValueError:
-            return None
-        expected = expected_modules.get(module)
-        if expected is None:
-            return None
-        expected_shape = expected[0 if side == "A" else 1]
-        if tensor.shape != expected_shape:
-            return None
-        mapping.append((tensor, module, side))
-    return mapping
-
-
-def _resolve_runtime_contract(
-    package_root: Path | str,
-    resolver: Any,
-) -> Any | None:
-    """Bind the published runtime package contract, or ``None`` on refusal.
-
-    The resolver is injected by the caller (the conversion layer must not import
-    the integrations layer where ``validate_runtime_package`` lives); any
-    resolver refusal means the base contract is not binding.
-    """
+def _read_safetensors_header(path: Path) -> dict[str, Any]:
+    raw = path.read_bytes()
+    if len(raw) < 8:
+        raise PreflightError("candidate is too small to be a safetensors file")
+    (header_len,) = struct.unpack("<Q", raw[:8])
+    if header_len <= 0 or 8 + header_len > len(raw):
+        raise PreflightError("candidate safetensors header length is invalid")
     try:
-        return resolver(package_root)
-    except Exception:
-        return None
+        header = json.loads(raw[8 : 8 + header_len].decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PreflightError("candidate safetensors header is not valid JSON") from exc
+    if not isinstance(header, dict):
+        raise PreflightError("candidate safetensors header must be an object")
+    return header
 
 
-def _bind_official_base_catalog(transformer_dir: Path) -> dict[str, Any] | None:
-    """Bind the official BF16 13-shard base census; ``None`` means the base is unbindable.
+def _candidate_census(header: dict[str, Any]) -> dict[str, tuple[str, tuple[int, ...]]]:
+    census: dict[str, tuple[str, tuple[int, ...]]] = {}
+    for name, record in header.items():
+        if name == "__metadata__":
+            continue
+        if not isinstance(record, dict) or "dtype" not in record or "shape" not in record:
+            raise PreflightError(f"candidate tensor {name!r} header record is malformed")
+        census[name] = (record["dtype"], tuple(int(v) for v in record["shape"]))
+    return census
 
-    The E4 package transformer is int8-convrot and does not present the official
-    BF16 ``535``-tensor census, so this returns ``None`` and the caller reports
-    :data:`BASE_REPRESENTATION_UNBINDABLE`.
-    """
-    from comfy_omni.conversion.lora.bake_plan import OFFICIAL_FL2VA_BASE_CONTRACT
 
-    safe_files = sorted(transformer_dir.glob("*.safetensors"))
-    if not safe_files:
-        return None
-    tensors: list[Any] = []
-    dtype_counts: dict[str, int] = {}
-    total_payload = 0
-    for file in safe_files:
-        size = file.stat().st_size
-        with file.open("rb") as stream:
-            metadata, shard_tensors, _ = read_safetensors_header_stream(stream, file, size)
-        for tensor in shard_tensors:
-            tensors.append(tensor)
-            dtype_counts[tensor.dtype] = dtype_counts.get(tensor.dtype, 0) + 1
-            total_payload += tensor.data_offsets[1] - tensor.data_offsets[0]
+def _validate_census(census: dict[str, tuple[str, tuple[int, ...]]]) -> None:
+    if not census:
+        raise PreflightError("candidate carries no tensors")
+    a_names: set[str] = set()
+    for name, (dtype, shape) in census.items():
+        if dtype != "BF16":
+            raise PreflightError(f"candidate tensor {name!r} is {dtype}, expected BF16")
+        if not name.endswith(".lora_A.weight") and not name.endswith(".lora_B.weight"):
+            raise PreflightError(f"candidate tensor {name!r} is not a lora_A/lora_B weight")
+        if len(shape) != 2:
+            raise PreflightError(f"candidate tensor {name!r} must be 2-D")
+        if name.endswith(".lora_A.weight"):
+            a_names.add(name)
+    for name in a_names:
+        b_name = name[: -len("lora_A.weight")] + "lora_B.weight"
+        if b_name not in census:
+            raise PreflightError(f"candidate tensor {name!r} has no matching lora_B")
+        a_shape = census[name][1]
+        b_shape = census[b_name][1]
+        if a_shape[1] != b_shape[0]:
+            raise PreflightError(f"candidate {name!r} rank mismatch: A{a_shape} vs B{b_shape}")
 
-    contract = OFFICIAL_FL2VA_BASE_CONTRACT
-    if len(tensors) != contract.tensor_count:
-        return None
-    if len(safe_files) != contract.shard_count:
-        return None
-    if tuple(sorted(dtype_counts.items())) != contract.dtype_counts:
-        return None
-    if total_payload != contract.total_size:
-        return None
-    return {
-        "files": tuple(safe_files),
-        "tensors": tuple(tensors),
-        "total_payload": total_payload,
-        "tensor_count": contract.tensor_count,
-        "shard_count": contract.shard_count,
-        "dtype_counts": contract.dtype_counts,
-        "catalog_sha256": contract.catalog_sha256,
+
+def _validate_profile(header: dict[str, Any]) -> None:
+    metadata = header.get("__metadata__")
+    if not isinstance(metadata, dict):
+        raise PreflightError("candidate metadata is missing")
+    checks = {
+        "application": metadata.get("application") == _PROFILE_APPLICATION,
+        "base_model": metadata.get("base_model") == _PROFILE_BASE_MODEL,
+        "dtype": metadata.get("dtype") == _PROFILE_DTYPE,
+        "sampler_steps": metadata.get("sampler_steps") == _PROFILE_SAMPLER_STEPS,
+        "output": metadata.get("output") in _PROFILE_OUTPUTS,
     }
+    if not all(checks.values()):
+        raise PreflightError("candidate metadata does not carry the pinned Comfy Turbo-V4 fold profile")
 
 
-def _run_offline_fold_oracle(candidate_id: str, catalog: dict[str, Any], mapping: list[tuple[Any, str, str]]) -> Any:
-    """Seam over the migrated offline fold oracle.
+def _resolve_target(module: str) -> bool:
+    return module in _KNOWN_MODULE_PREFIXES
 
-    The real reference-fold oracle and residual diagnostic are characterized by a
-    later GPU host run; until a BF16 baseline base binds, this seam is fail-closed.
-    The NEW-code unit matrix monkeypatches this function.
+
+def _validate_target_mapping(census: dict[str, tuple[str, tuple[int, ...]]]) -> None:
+    for name in census:
+        if name.endswith(".lora_A.weight"):
+            module = name[: -len(".lora_A.weight")]
+        elif name.endswith(".lora_B.weight"):
+            module = name[: -len(".lora_B.weight")]
+        else:
+            continue
+        prefix = "diffusion_model."
+        if not module.startswith(prefix):
+            raise PreflightError(f"candidate module {module!r} is outside diffusion_model")
+        target = module[len(prefix) :]
+        if not _resolve_target(target):
+            raise PreflightError(f"candidate target module {target!r} is not in the H3 table")
+
+
+def _bind_official_base_catalog(transformer_dir: Path | str) -> dict[str, Any]:
+    """Bind the official dense base catalog; reject serialized INT8 ConvRot forms.
+
+    A marker-free dense BF16 transformer tree is bindable; a source form
+    carrying ``comfy_quant`` markers (the INT8 ConvRot representation) is
+    refused, because the runtime serves the dequantized dense form only.
     """
-    # Fail-closed until the GPU-host oracle is characterized: never claim SUPPORTED
-    # from the preflight gate alone.
-    return SimpleNamespace(passed=False)
+    root = Path(transformer_dir)
+    if not root.is_dir():
+        raise PreflightError("transformer directory does not exist")
+    shards = sorted(root.glob("model-*.safetensors")) or sorted(root.glob("*.safetensors"))
+    if not shards:
+        raise PreflightError("transformer directory carries no safetensors shards")
+    markers: list[str] = []
+    for shard in shards:
+        header = _read_safetensors_header(shard)
+        markers.extend(name for name in header if name != "__metadata__" and ".comfy_quant" in name)
+    if markers:
+        raise PreflightError(
+            "transformer base carries serialized comfy_quant markers; serve the dequantized dense BF16 representation"
+        )
+    return {"bound": True, "representation": "dense-bf16", "shards": len(shards)}
+
+
+def _run_offline_fold_oracle(
+    candidate_census: dict[str, tuple[str, tuple[int, ...]]],
+    base_catalog: dict[str, Any],
+    runtime_contract: Any,
+) -> OracleOutcome:
+    """Pinned reference-fold micro oracle (default: fail closed).
+
+    The real oracle requires the pinned Comfy reference fold sources and a
+    torch-backed five-tensor reference run; until those sources are vendored
+    and verified, no SUPPORTED claim is produced (OFFLINE_FOLD_ORACLE_NOT_PASSED).
+    """
+    return OracleOutcome(
+        passed=False,
+        detail="pinned Comfy reference fold oracle is not bound; no SUPPORTED claim",
+    )
+
+
+def _refuse(candidate_id: str, reason_code: str, stage: str, detail: str) -> LoRACompatibilityVerdict:
+    return LoRACompatibilityVerdict(
+        candidate_id=candidate_id,
+        verdict=UNSUPPORTED,
+        reason_code=reason_code,
+        evidence={"stage": stage, "detail": detail},
+    )
 
 
 def preflight_candidate(
@@ -210,80 +232,102 @@ def preflight_candidate(
     *,
     pinned_sha256: str,
     pinned_bytes: int,
-    runtime_contract_resolver: Any = None,
+    runtime_contract_resolver: Callable[..., Any] | None = None,
 ) -> LoRACompatibilityVerdict:
-    """Produce a fail-closed LoRA compatibility verdict for one pinned candidate.
+    """Run the fail-closed LoRA compatibility preflight (read-only).
 
-    The caller supplies ``pinned_sha256`` / ``pinned_bytes`` from
-    ``docs/testing/model-baseline.v1.json`` and injects
-    ``runtime_contract_resolver`` (e.g. ``validate_runtime_package`` from the
-    integrations layer; dependency direction forbids importing it here).  The
-    verdict is decided in a strict fail-closed order and never mutates the
-    candidate or the published package.
+    ``runtime_contract_resolver`` defaults to the integration package
+    contract validator and is injected for host-free tests.
     """
     candidate = Path(candidate_path)
-
-    # (1) Pin the candidate identity (size + SHA256).
     try:
-        if not _pins_match(candidate, pinned_sha256, pinned_bytes):
-            return _unsupported(
+        digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        size = candidate.stat().st_size
+        if digest != pinned_sha256 or size != pinned_bytes:
+            return _refuse(
                 candidate_id,
-                CANDIDATE_PIN_MISMATCH,
-                stage="pin",
-                path=str(candidate),
+                contract.CANDIDATE_PIN_MISMATCH,
+                contract.STAGE_CANDIDATE_PIN,
+                f"sha256 {digest} size {size} differ from pin",
             )
-    except OSError as exc:
-        return _unsupported(candidate_id, CANDIDATE_PIN_MISMATCH, stage="pin", path=str(candidate), cause=str(exc))
+        header = _read_safetensors_header(candidate)
+        census = _candidate_census(header)
+        try:
+            _validate_census(census)
+        except PreflightError as exc:
+            return _refuse(
+                candidate_id,
+                contract.CANDIDATE_TENSOR_CENSUS_MISMATCH,
+                contract.STAGE_CANDIDATE_CENSUS,
+                str(exc),
+            )
+        try:
+            _validate_profile(header)
+        except PreflightError as exc:
+            return _refuse(
+                candidate_id,
+                contract.CANDIDATE_PROFILE_UNSUPPORTED,
+                contract.STAGE_CANDIDATE_PROFILE,
+                str(exc),
+            )
+        try:
+            _validate_target_mapping(census)
+        except PreflightError as exc:
+            return _refuse(
+                candidate_id,
+                contract.TARGET_MODULE_MAPPING_UNRESOLVED,
+                contract.STAGE_TARGET_MAPPING,
+                str(exc),
+            )
+        package = Path(package_root)
+        transformer_dir = package / "Ref2VA" / "transformer"
+        if not transformer_dir.is_dir():
+            transformer_dir = package / "transformer"
+        try:
+            base_catalog = _bind_official_base_catalog(transformer_dir)
+        except PreflightError as exc:
+            return _refuse(
+                candidate_id,
+                contract.BASE_REPRESENTATION_UNBINDABLE,
+                contract.STAGE_BASE_REPRESENTATION,
+                str(exc),
+            )
+        resolver = runtime_contract_resolver
+        if resolver is None:
+            from comfy_omni.integrations.vllm_omni.package_contract import validate_runtime_package
 
-    # (2) Read the header-only census and bind the normalization profile.
-    try:
-        metadata, tensors, _ = _read_candidate_census(candidate)
-    except (OSError, ValueError) as exc:
-        return _unsupported(
-            candidate_id,
-            CANDIDATE_TENSOR_CENSUS_MISMATCH,
-            stage="census",
-            path=str(candidate),
-            cause=str(exc),
+            resolver = validate_runtime_package
+        runtime_contract = resolver(package)
+        outcome = _run_offline_fold_oracle(census, base_catalog, runtime_contract)
+        if not outcome.passed:
+            return _refuse(
+                candidate_id,
+                contract.OFFLINE_FOLD_ORACLE_NOT_PASSED,
+                contract.STAGE_OFFLINE_ORACLE,
+                outcome.detail or "reference-fold oracle did not pass",
+            )
+        return LoRACompatibilityVerdict(
+            candidate_id=candidate_id,
+            verdict=SUPPORTED,
+            reason_code=None,
+            evidence={"stage": "complete", "detail": "all preflight stages passed"},
         )
-    if not tensors:
-        return _unsupported(candidate_id, CANDIDATE_TENSOR_CENSUS_MISMATCH, stage="census", path=str(candidate))
-    if _bind_profile(metadata) is None:
-        return _unsupported(
+    except (OSError, PreflightError) as exc:
+        return _refuse(
             candidate_id,
-            CANDIDATE_PROFILE_UNSUPPORTED,
-            stage="profile",
-            path=str(candidate),
-            metadata=dict(metadata),
-        )
-    if any(tensor.dtype != "BF16" for tensor in tensors):
-        return _unsupported(candidate_id, CANDIDATE_TENSOR_CENSUS_MISMATCH, stage="census", path=str(candidate))
-
-    # (3) Bind every candidate tensor to a known target module + side.
-    mapping = _bind_target_module_mapping(tensors)
-    if mapping is None:
-        return _unsupported(candidate_id, TARGET_MODULE_MAPPING_UNRESOLVED, stage="target-module", path=str(candidate))
-
-    # (4) Bind the runtime package and the official base census.
-    runtime = (
-        _resolve_runtime_contract(package_root, runtime_contract_resolver)
-        if runtime_contract_resolver is not None
-        else None
-    )
-    if runtime is None:
-        return _unsupported(candidate_id, ORACLE_BASE_CONTRACT_NOT_BINDING, stage="runtime-package")
-    transformer_dir = runtime.component_paths["transformer"]
-    catalog = _bind_official_base_catalog(transformer_dir)
-    if catalog is None:
-        return _unsupported(
-            candidate_id,
-            BASE_REPRESENTATION_UNBINDABLE,
-            stage="base-representation",
-            transformer=str(transformer_dir),
+            contract.CANDIDATE_PIN_MISMATCH,
+            contract.STAGE_CANDIDATE_PIN,
+            f"candidate unreadable: {exc}",
         )
 
-    # (5) Run the migrated offline fold / cache oracle.
-    outcome = _run_offline_fold_oracle(candidate_id, catalog, mapping)
-    if outcome is not None and getattr(outcome, "passed", False):
-        return _supported(candidate_id, stage="offline-fold")
-    return _unsupported(candidate_id, OFFLINE_FOLD_ORACLE_NOT_PASSED, stage="offline-fold")
+
+__all__ = [
+    "COMFY_OMNI_LORA_COMPATIBILITY_SCHEMA",
+    "SUPPORTED",
+    "UNSUPPORTED",
+    "OracleOutcome",
+    "LoRACompatibilityVerdict",
+    "preflight_candidate",
+    "_bind_official_base_catalog",
+    "_run_offline_fold_oracle",
+]
