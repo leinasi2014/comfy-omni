@@ -25,3 +25,18 @@ def mount_components(api_server: object) -> None:
         return
     target.include_router(build_router())
     target.h3_forge_components_mounted = True
+
+
+def mount_runtime(api_server: object) -> None:
+    """Mount live runtime controls once, after the root host API exists."""
+    from comfy_omni.api.routes.h3_runtime import build_router
+    from comfy_omni.integrations.vllm_omni.residency_control import H3ResidencyControlError, H3ResidencyCoordinator
+
+    target = getattr(api_server, "router", None)
+    if target is None:
+        target = getattr(api_server, "app", None)
+    if target is None or not callable(getattr(target, "include_router", None)):
+        raise RuntimeError("host API server has no APIRouter or FastAPI app for H3 runtime controls")
+    if not getattr(target, "comfy_omni_h3_runtime_mounted", False):
+        target.include_router(build_router(H3ResidencyCoordinator, H3ResidencyControlError))
+        target.comfy_omni_h3_runtime_mounted = True

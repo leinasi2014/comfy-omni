@@ -160,3 +160,71 @@ def test_pipeline_resolves_the_real_package_root_through_a_serving_view(
 
     assert leaf.MiniMaxH3Pipeline.constructed[-1][1] == "p1"
     assert pipeline.comfy_omni_package.package_root == output.resolve()
+
+
+@pytest.mark.parametrize("named_sources", [False, True])
+def test_explicit_raw_transformer_uses_existing_root_without_package_validation(monkeypatch, tmp_path, named_sources):
+    """Selecting an original file must bypass the exported-package boundary."""
+    _install_host_stubs(monkeypatch)
+    module_name = "comfy_omni.integrations.vllm_omni.pipelines.runtime_pipeline"
+    monkeypatch.delitem(sys.modules, module_name, raising=False)
+    runtime = importlib.import_module(module_name)
+    source = tmp_path / "original.safetensors"
+    source.write_bytes(b"routing fixture, provider tested independently")
+    component_root = tmp_path / "existing" / "Ref2VA"
+    component_root.mkdir(parents=True)
+    (component_root / "model_index.json").write_text('{"_minimax_h3":{"partition":"ref2va"}}')
+    authenticated = object()
+    calls = []
+    provider_module = types.ModuleType("comfy_omni.runtime.h3.raw_beta4")
+
+    class RawBeta4Binding:
+        @staticmethod
+        def establish(path):
+            calls.append(path)
+            return authenticated
+
+    provider_module.RawBeta4Binding = RawBeta4Binding
+    monkeypatch.setitem(sys.modules, provider_module.__name__, provider_module)
+    implementation = types.ModuleType("comfy_omni.integrations.vllm_omni.pipelines.beta4_pipeline")
+
+    class RawPipeline:
+        def __init__(self, *, od_config, raw_binding, raw_selection="initial", prefix="", package=None):
+            self.od_config = od_config
+            self.raw_binding = raw_binding
+            self.prefix = prefix
+            self.registered = {}
+            self.comfy_omni_active_h3_dit = self.comfy_omni_register_h3_dit(raw_selection, raw_binding)
+            assert package is None
+
+        def comfy_omni_register_h3_dit(self, selection, binding):
+            self.registered[selection] = binding
+            return selection
+
+    implementation.H3Beta4Pipeline = RawPipeline
+    monkeypatch.setitem(sys.modules, implementation.__name__, implementation)
+
+    def forbidden_package(*args, **kwargs):
+        raise AssertionError("original-file loading entered the exported-package boundary")
+
+    monkeypatch.setattr(runtime, "_resolve_package_root", forbidden_package)
+    settings = {"transformer_source": str(source)}
+    if named_sources:
+        settings = {
+            "active": "a",
+            "sources": {
+                "a": {"path": str(source), "format": "h3-beta4-convrot"},
+                "alias": {"path": str(source), "format": "h3-beta4-convrot"},
+            },
+        }
+    config = types.SimpleNamespace(model=str(component_root), additional_config={"comfy_omni_h3": settings})
+    result = runtime.H3ComfyMiniMaxH3Pipeline(od_config=config, prefix="original")
+    assert isinstance(result, RawPipeline)
+    assert result.raw_binding is authenticated
+    assert result.od_config.model == str(component_root)
+    assert result.prefix == "original"
+    assert calls == [source]
+    if named_sources:
+        assert result.registered == {"a": authenticated, "alias": authenticated}
+        assert result.comfy_omni_active_h3_dit == "a"
+    assert sorted(item.name for item in component_root.iterdir()) == ["model_index.json"]

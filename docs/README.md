@@ -1,6 +1,7 @@
 # ComfyOmni documentation
 
 - [User guide](user-guide.md) · [中文使用指南](user-guide.zh-CN.md)
+- [H3 原文件加载、装卸与切换](guides/h3-original-files.md)
 - [H3-first refactoring plan / H3 优先重构方案](post-merge-refactoring-plan.md)
 - [Runtime architecture](architecture/README.md)
 - [Fixed model validation baseline](testing/model-validation-baseline.md)
