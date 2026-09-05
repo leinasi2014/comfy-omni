@@ -11,6 +11,7 @@ import hashlib
 import os
 import stat
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -110,6 +111,8 @@ def publish_native_export(
     stage: NativeExportStage,
     artifacts: tuple[StagedArtifact, ...],
     unsigned_manifest: dict[str, Any],
+    *,
+    before_manifest: Callable[[], None] | None = None,
 ) -> NativeExportPublication:
     """Publish verified artifacts without overwrite, then write the receipt last."""
 
@@ -138,6 +141,23 @@ def publish_native_export(
             digest, size = fileops.sha256_file_pinned(stage.output_dir / artifact.name)
             if (digest, size) != (artifact.sha256, artifact.size):
                 raise ContractError(f"published artifact verification failed: {artifact.name}")
+        if before_manifest is not None:
+            try:
+                before_manifest()
+            except BaseException:
+                # Remove only this call's exclusive directory and its own staged links.
+                # A foreign replacement must never be removed during failure cleanup.
+                current = stage.output_dir.lstat()
+                if (current.st_dev, current.st_ino) == output_identity:
+                    for artifact in artifacts:
+                        target = stage.output_dir / artifact.name
+                        linked, staged = target.lstat(), (stage.path / artifact.name).lstat()
+                        if (linked.st_dev, linked.st_ino) == (staged.st_dev, staged.st_ino):
+                            target.unlink()
+                    if not any(stage.output_dir.iterdir()):
+                        stage.output_dir.rmdir()
+                    fileops.fsync_dir(stage.parent)
+                raise
         manifest_sha256 = hashlib.sha256(fileops.canonical_json(unsigned_manifest)).hexdigest()
         manifest = {**unsigned_manifest, "manifest_sha256": manifest_sha256}
         manifest_path = stage.output_dir / MANIFEST_NAME
