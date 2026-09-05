@@ -34,7 +34,7 @@ from comfy_omni.runtime.h3.beta4_binding import (
     verify_beta4_component,
 )
 
-MEMORY_LIMIT = 4 * 1024**3
+MEMORY_LIMIT = 4 * 1024**3  # Per-rank host RAM budget; the container holds all TP ranks.
 HOST_COMMIT = "17285c2f55a41bf15772676121814d59a60ace35"
 SCHEMA = "comfy_omni.beta4.host_acceptance/v1"
 COMPARISON_POLICY = {"status": "UNFROZEN", "automatic_pass": False, "legacy_bitwise_claim": False}
@@ -89,7 +89,7 @@ def _read_receipt(path):
     return doc
 
 
-def _memory():
+def _memory(tp):
     for root, maximum, current, peak in (
         (Path("/sys/fs/cgroup"), "memory.max", "memory.current", "memory.peak"),
         (Path("/sys/fs/cgroup/memory"), "memory.limit_in_bytes", "memory.usage_in_bytes", "memory.max_usage_in_bytes"),
@@ -98,7 +98,7 @@ def _memory():
         if not path.is_file():
             continue
         raw = path.read_text().strip()
-        if raw.isdecimal() and 0 < int(raw) <= MEMORY_LIMIT:
+        if raw.isdecimal() and 0 < int(raw) <= MEMORY_LIMIT * tp:
             values = {
                 "limit_bytes": int(raw),
                 "max_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
@@ -106,9 +106,12 @@ def _memory():
             for key, name in (("current_bytes", current), ("peak_bytes", peak)):
                 observed = root / name
                 values[key] = int(observed.read_text().strip()) if observed.is_file() else None
-            _require(values["max_rss_bytes"] <= int(raw), "process RSS exceeds the acceptance limit")
+            _require(
+                values["max_rss_bytes"] <= min(int(raw), MEMORY_LIMIT),
+                "process RSS exceeds the per-rank acceptance limit",
+            )
             return values
-    raise ValueError("acceptance requires an enforced container memory limit of at most 4 GiB")
+    raise ValueError(f"acceptance requires an enforced container memory limit of at most {4 * tp} GiB for TP{tp}")
 
 
 def _validate_args(args, environ):
@@ -516,7 +519,7 @@ def _run(args, rank, local):
 
     installed = Path(importlib.metadata.distribution("comfy-omni").locate_file("comfy_omni")).resolve()
     _require(Path(comfy_omni.__file__).resolve().parent == installed, "source checkout shadows the installed wheel")
-    before = _memory()
+    before = _memory(args.tp)
     fixture = _fixture(args.fixture_file, args.fixture_sha256) if args.mode == "tiny" else None
     architecture = fixture.tiny_arch_config() if fixture else BETA4_RUNTIME_ARCHITECTURE
     with _gpu_host(args, rank, local, architecture) as host:
@@ -551,7 +554,7 @@ def _run(args, rank, local):
                 "attention_backend": "actual-official-sdpa-cuda",
                 "tf32": False,
                 "memory_before": before,
-                "memory_after": _memory(),
+                "memory_after": _memory(args.tp),
                 "numerical_policy": dict(COMPARISON_POLICY),
             }
         )

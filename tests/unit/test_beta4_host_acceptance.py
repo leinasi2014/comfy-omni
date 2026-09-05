@@ -6,7 +6,9 @@ import copy
 import hashlib
 import importlib.util
 import struct
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -16,6 +18,87 @@ acceptance = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(acceptance)
 
 UUIDS = ["GPU-00000000-0000-0000-0000-000000000000", "GPU-11111111-1111-1111-1111-111111111111"]
+
+
+def _cgroup(tmp_path, monkeypatch, *, version, limit):
+    root = tmp_path / "cgroup"
+    names = (
+        ("memory.max", "memory.current", "memory.peak")
+        if version == 2
+        else ("memory.limit_in_bytes", "memory.usage_in_bytes", "memory.max_usage_in_bytes")
+    )
+    directory = root if version == 2 else root / "memory"
+    directory.mkdir(parents=True)
+    for name, value in zip(names, (limit, 1024**3, 2 * 1024**3), strict=True):
+        (directory / name).write_text(str(value))
+
+    def redirected(value):
+        path = Path(value)
+        return root / path.relative_to("/sys/fs/cgroup") if path.is_relative_to("/sys/fs/cgroup") else path
+
+    monkeypatch.setattr(acceptance, "Path", redirected)
+    monkeypatch.setattr(acceptance.resource, "getrusage", lambda _: SimpleNamespace(ru_maxrss=1024**2))
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_tp2_with_eight_gib_container_reaches_gpu_stage_without_loading_a_model(tmp_path, monkeypatch, version):
+    import comfy_omni
+
+    _cgroup(tmp_path, monkeypatch, version=version, limit=8 * 1024**3)
+    args = acceptance._parser().parse_args(_argv(tmp_path, tp=2))
+    monkeypatch.setattr(
+        acceptance,
+        "installed_tool_identity",
+        lambda: SimpleNamespace(source_commit=args.commit, wheel_sha256=args.wheel_sha256),
+    )
+    monkeypatch.setattr(
+        acceptance.importlib.metadata,
+        "distribution",
+        lambda _: SimpleNamespace(locate_file=lambda _: Path(comfy_omni.__file__).parent),
+    )
+    monkeypatch.setattr(acceptance, "_fixture", lambda *_: SimpleNamespace(tiny_arch_config=lambda: {}))
+
+    class ReachedGpuStage(Exception):
+        pass
+
+    @contextmanager
+    def gpu_stage(*_):
+        raise ReachedGpuStage
+        yield  # pragma: no cover - the regression ends before any GPU work
+
+    monkeypatch.setattr(acceptance, "_gpu_host", gpu_stage)
+    with pytest.raises(ReachedGpuStage):
+        acceptance._run(args, rank=0, local=0)
+
+
+@pytest.mark.parametrize("version", [1, 2])
+@pytest.mark.parametrize("tp,gib", [(1, 2), (1, 4), (2, 4), (2, 8)])
+def test_memory_observation_records_actual_limit_without_inventing_the_maximum(tmp_path, monkeypatch, version, tp, gib):
+    _cgroup(tmp_path, monkeypatch, version=version, limit=gib * 1024**3)
+    assert acceptance._memory(tp) == {
+        "limit_bytes": gib * 1024**3,
+        "max_rss_bytes": 1024**3,
+        "current_bytes": 1024**3,
+        "peak_bytes": 2 * 1024**3,
+    }
+
+
+@pytest.mark.parametrize("version", [1, 2])
+@pytest.mark.parametrize(
+    "tp,limit", [(1, "max"), (2, "max"), (1, 0), (2, -1), (1, 4 * 1024**3 + 1), (2, 8 * 1024**3 + 1)]
+)
+def test_memory_gate_rejects_unlimited_or_over_budget_containers(tmp_path, monkeypatch, version, tp, limit):
+    _cgroup(tmp_path, monkeypatch, version=version, limit=limit)
+    with pytest.raises(ValueError, match="enforced container memory limit"):
+        acceptance._memory(tp)
+
+
+@pytest.mark.parametrize("tp,limit,rss", [(1, 2 * 1024**3, 2 * 1024**3 + 1024), (2, 8 * 1024**3, 4 * 1024**3 + 1024)])
+def test_memory_gate_keeps_the_individual_rank_rss_bounded(tmp_path, monkeypatch, tp, limit, rss):
+    _cgroup(tmp_path, monkeypatch, version=2, limit=limit)
+    monkeypatch.setattr(acceptance.resource, "getrusage", lambda _: SimpleNamespace(ru_maxrss=rss // 1024))
+    with pytest.raises(ValueError, match="process RSS exceeds the per-rank acceptance limit"):
+        acceptance._memory(tp)
 
 
 def _argv(tmp_path, *, mode="tiny", tp=1):
