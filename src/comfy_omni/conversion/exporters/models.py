@@ -111,10 +111,12 @@ class NativeExportPlan:
     shards: tuple[ShardPlan, ...]
     target_tensor_count: int
     target_payload_bytes: int
-    runtime_quant_method: str
+    runtime_quant_method: str | None
     runtime_ignored_layers: tuple[str, ...]
     payload_semantics: str
     content_sha256: str
+    target_contract: str | None = None
+    target_schema_sha256: str | None = None
 
     def to_dict(self, *, include_content_sha256: bool = True) -> dict[str, Any]:
         payload = {
@@ -145,7 +147,7 @@ class NativeExportPlan:
                 "payload_bytes": self.target_payload_bytes,
             },
             "runtime_quantization": {
-                "required": True,
+                "required": self.runtime_quant_method is not None,
                 "method": self.runtime_quant_method,
                 "ignored_layers": list(self.runtime_ignored_layers),
                 "checkpoint_int8_serialized": False,
@@ -157,6 +159,9 @@ class NativeExportPlan:
                 "direct_convrot_loading": False,
             },
         }
+        if self.target_contract is not None:
+            payload["target"]["contract"] = self.target_contract
+            payload["target"]["schema_sha256"] = self.target_schema_sha256
         if include_content_sha256:
             payload["content_sha256"] = self.content_sha256
         return payload

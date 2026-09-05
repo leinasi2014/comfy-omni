@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from math import prod
 from pathlib import Path
 from typing import Any
@@ -17,12 +17,16 @@ from comfy_omni.artifacts.safetensors_writer import (
 )
 from comfy_omni.artifacts.snapshot_schema import CONTRACT_SNAPSHOT_COPY_NAME, load_snapshot
 from comfy_omni.artifacts.sources import SafeTensorSources
+from comfy_omni.contracts.beta4 import BETA4_SOURCE_NAME, BETA4_TARGET_NAME
 from comfy_omni.contracts.conversion import (
     EXPORT_SCHEMA,
+    PROFILE_BETA4_DENSE_BF16,
     PROFILE_DENSE_BF16_ONLINE_INT8,
 )
 from comfy_omni.contracts.models import ContractError
+from comfy_omni.conversion.contract_workflows.census import FileRecord, census_tensors
 from comfy_omni.conversion.contract_workflows.convrot import discover_convrot_groups
+from comfy_omni.conversion.exporters.beta4 import build_beta4_dense_plan
 from comfy_omni.conversion.exporters.models import NativeExportPlan, TensorAction
 from comfy_omni.conversion.exporters.payloads import (
     ConvRotBlockBackend,
@@ -60,13 +64,17 @@ def _fail(detail: str, stage: str) -> None:
 
 
 def _verify_plan_digest(plan: NativeExportPlan) -> None:
+    if (
+        plan.source_contract == BETA4_SOURCE_NAME or plan.target_contract == BETA4_TARGET_NAME
+    ) and plan.profile != PROFILE_BETA4_DENSE_BF16:
+        _fail("beta4 authority cannot be relabeled with another execution profile", "plan-binding")
     observed = hashlib.sha256(fileops.canonical_json(plan.to_dict(include_content_sha256=False))).hexdigest()
     if observed != plan.content_sha256:
         _fail("native export plan content SHA256 mismatch", "plan-binding")
     if (
         plan.schema != PLAN_SCHEMA
         or plan.output_schema != EXPORT_SCHEMA
-        or plan.profile != PROFILE_DENSE_BF16_ONLINE_INT8
+        or plan.profile not in {PROFILE_DENSE_BF16_ONLINE_INT8, PROFILE_BETA4_DENSE_BF16}
     ):
         _fail("native export plan schema or profile is not executable by this slice", "plan-binding")
     snapshot_digests = (plan.source_snapshot_manifest_sha256, plan.source_snapshot_file_sha256)
@@ -264,6 +272,27 @@ def _validate_plan(
     sources: SafeTensorSources,
 ) -> tuple[dict[str, TensorAction], dict[str, Any]]:
     _bind_sources(plan, sources)
+    if plan.profile == PROFILE_BETA4_DENSE_BF16:
+        report = census_tensors(
+            tuple(item.descriptor for item in sources.tensors.values()),
+            {name: sources.read_raw(item) for name, item in sources.tensors.items() if name.endswith(".comfy_quant")},
+            files=tuple(
+                FileRecord(str(path), size, digest)
+                for path, size, digest in zip(
+                    sources.paths,
+                    sources.sizes,
+                    sources.hashes,
+                    strict=True,
+                )
+            ),
+        )
+        expected = build_beta4_dense_plan(
+            report,
+            max_rows=plan.resource_envelope.max_rows,
+            max_shard_bytes=plan.resource_envelope.max_shard_bytes,
+        )
+        if expected != plan:
+            _fail("beta4 plan disagrees with its reconstructed compiled authority", "plan-binding")
     qkv_operations = {OP_COPY_QKV_TO_GROUPED, OP_INVERSE_CONVROT_BF16_QKV_TO_GROUPED}
     if any(action.operation in qkv_operations for action in plan.actions):
         validate_qkv_layout(plan.qkv_layout)
@@ -346,17 +375,21 @@ def _chunks_for_action(
 
 
 def _config_patch(plan: NativeExportPlan) -> dict[str, Any]:
-    return {
+    config = {
         "_comfy_omni": {
             "output_schema": plan.output_schema,
             "plan_content_sha256": plan.content_sha256,
             "profile": plan.profile,
         },
-        "quantization_config": {
+    }
+    if plan.profile == PROFILE_BETA4_DENSE_BF16:
+        config["quantization_config"] = None
+    if plan.runtime_quant_method is not None:
+        config["quantization_config"] = {
             "ignored_layers": list(plan.runtime_ignored_layers),
             "quant_method": plan.runtime_quant_method,
-        },
-    }
+        }
+    return config
 
 
 def execute_native_export(
@@ -366,6 +399,7 @@ def execute_native_export(
     tool: ToolIdentity,
     convrot_backend: ConvRotBlockBackend = torch_convrot_bf16_block,
     source_contract_snapshot: Path | None = None,
+    before_publication: Callable[[Path], None] | None = None,
 ) -> NativeExportPublication:
     """Execute one exact plan through private staging and manifest-last publication."""
 
@@ -446,8 +480,14 @@ def execute_native_export(
             },
             "tool": tool.to_dict(),
         }
+        if plan.profile == PROFILE_BETA4_DENSE_BF16:
+            manifest["target"].update(contract=plan.target_contract, schema_sha256=plan.target_schema_sha256)
+            manifest["runtime_quantization"] = plan.to_dict()["runtime_quantization"]
+            manifest["qkv_layout"] = plan.qkv_layout.to_dict()
         if snapshot_record is not None:
             manifest["source_contract"] = snapshot_record
+        if before_publication is not None:
+            before_publication(stage.path)
         return publish_native_export(stage, tuple(staged), manifest)
 
 

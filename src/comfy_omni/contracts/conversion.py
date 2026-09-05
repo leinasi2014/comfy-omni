@@ -15,6 +15,7 @@ from comfy_omni.contracts.models import STORAGE_INT8_CONVROT
 
 EXPORT_SCHEMA: Final = "h3-comfy-int8-export/v2"
 PROFILE_DENSE_BF16_ONLINE_INT8: Final = "dense-bf16-online-int8"
+PROFILE_BETA4_DENSE_BF16: Final = "beta4-dense-bf16"
 QKV_SOURCE_LAYOUT: Final = "runtime-qkv"
 QKV_TARGET_LAYOUT: Final = "grouped-for-official-loader"
 
@@ -60,7 +61,7 @@ class NativeExportProfile:
     component: str
     source_storage_kind: str
     output_weight_dtype: str
-    runtime_quant_method: str
+    runtime_quant_method: str | None
     runtime_ignored_layers: tuple[str, ...]
     qkv: QkvLayoutContract
     payload_semantics: str
@@ -85,9 +86,21 @@ DENSE_BF16_ONLINE_INT8 = NativeExportProfile(
     payload_semantics="inverse-convrot-to-dense-bf16; runtime-int8-required; not-payload-preserving",
 )
 
-NATIVE_EXPORT_PROFILES = MappingProxyType({DENSE_BF16_ONLINE_INT8.name: DENSE_BF16_ONLINE_INT8})
+BETA4_DENSE_BF16 = NativeExportProfile(
+    name=PROFILE_BETA4_DENSE_BF16,
+    component="transformer",
+    source_storage_kind=STORAGE_INT8_CONVROT,
+    output_weight_dtype="BF16",
+    runtime_quant_method=None,
+    runtime_ignored_layers=(),
+    qkv=H3_TRANSFORMER_QKV,
+    payload_semantics="inverse-convrot-to-dense-bf16; dense-bf16-execution; not-payload-preserving",
+)
+NATIVE_EXPORT_PROFILES = MappingProxyType({item.name: item for item in (DENSE_BF16_ONLINE_INT8, BETA4_DENSE_BF16)})
 
 __all__ = [
+    "BETA4_DENSE_BF16",
+    "PROFILE_BETA4_DENSE_BF16",
     "DENSE_BF16_ONLINE_INT8",
     "EXPORT_SCHEMA",
     "H3_TRANSFORMER_QKV",
