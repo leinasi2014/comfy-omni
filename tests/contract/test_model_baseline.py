@@ -29,8 +29,8 @@ EXPECTED_ASSETS = {
     ),
     "audio-vae": (
         "audio-vae",
-        605_254_808,
-        "8e505d95dd1561d47abd43d4238fd40d9bb1ae9e147ed0a4cba778d76ae4db48",
+        605_429_308,
+        "37dddc2f3e6d5d5139d823d5ea283bbf304dadcb885b1ccda818aa13dade5ea2",
     ),
     "video-vae": (
         "video-vae",
@@ -129,6 +129,16 @@ EXPECTED_SCENARIOS = {
 
 def _load_baseline() -> dict[str, object]:
     return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+
+
+def test_video_vae_source_identity_is_distinct_from_the_runtime_derivative() -> None:
+    asset = next(item for item in _load_baseline()["assets"] if item["id"] == "video-vae")
+    staging = asset["staging_policy"]
+    assert asset["sha256"] == staging["source_sha256"]
+    assert asset["bytes"] == 5_207_808_496
+    assert staging["expected_derived_sha256"] != asset["sha256"]
+    assert staging["expected_derived_bytes"] == 5_207_806_104
+    assert asset["runtime_conformance"]["extra_keys"] == ["latents_mean", "latents_std"]
 
 
 def test_model_baseline_has_the_frozen_asset_identities() -> None:
