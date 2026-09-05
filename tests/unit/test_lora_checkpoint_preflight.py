@@ -444,10 +444,14 @@ def test_import_has_no_runtime_or_torch_dependency():
 @pytest.mark.parametrize("module", ["unrecognized.projection", "blocks.1.attn.out_proj"])
 def test_unknown_or_missing_target_preserves_rank_metadata_conflict(tmp_path, module):
     base, adapter, _, _ = _pair(tmp_path)
-    _write(adapter, [
-        (module + ".lora_A.weight", "BF16", [3, 16], bytes(3 * 16 * 2)),
-        (module + ".lora_B.weight", "BF16", [8, 3], bytes(8 * 3 * 2)),
-    ], {"rank": "4"})
+    _write(
+        adapter,
+        [
+            (module + ".lora_A.weight", "BF16", [3, 16], bytes(3 * 16 * 2)),
+            (module + ".lora_B.weight", "BF16", [8, 3], bytes(8 * 3 * 2)),
+        ],
+        {"rank": "4"},
+    )
     receipt = _invoke(base, adapter).to_dict()
     assert receipt["evidence"]["mapping"]["modules"][0]["rank"] == 3
     assert receipt["reason_code"] == "ADAPTER_SCALE_UNSUPPORTED"

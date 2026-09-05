@@ -80,11 +80,14 @@ def test_missing_pairs_unknown_keys_and_alias_collisions_are_covered():
 
 @pytest.mark.parametrize("target", ["unknown", "missing"])
 @pytest.mark.parametrize("suffixes", [(".lora_A.weight", ".lora_B.weight"), (".lora_down.weight", ".lora_up.weight")])
-@pytest.mark.parametrize("b_rank,b_dtype,reason", [
-    (3, "BF16", "UNKNOWN_TARGET_MODULE"),
-    (4, "BF16", "PAIR_RANK_MISMATCH"),
-    (3, "F16", "PAIR_DTYPE_MISMATCH"),
-])
+@pytest.mark.parametrize(
+    "b_rank,b_dtype,reason",
+    [
+        (3, "BF16", "UNKNOWN_TARGET_MODULE"),
+        (4, "BF16", "PAIR_RANK_MISMATCH"),
+        (3, "F16", "PAIR_DTYPE_MISMATCH"),
+    ],
+)
 def test_target_failure_does_not_hide_pair_rank_or_validation(target, suffixes, b_rank, b_dtype, reason):
     module = "unrecognized.projection" if target == "unknown" else "blocks.0.attn.out_proj"
     base = [_tensor(module + ".weight", [8, 16])] if target == "unknown" else []

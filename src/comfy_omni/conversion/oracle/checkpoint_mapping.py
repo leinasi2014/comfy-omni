@@ -97,19 +97,21 @@ def observe_mapping(
             reason = "INCOMPLETE_OR_DUPLICATE_PAIR"
         elif len({syntax for _, syntax, _ in members}) != 1:
             reason = "MIXED_PAIR_SYNTAX"
-        elif not _known_module(module) or target is None:
-            reason = "UNKNOWN_TARGET_MODULE"
         else:
             a = next(item for item, _, side in members if side == "A")
             b = next(item for item, _, side in members if side == "B")
+            valid_shapes = len(a.shape) == 2 and len(b.shape) == 2 and all((*a.shape, *b.shape))
+            if valid_shapes:
+                record["rank"] = a.shape[0]
             if a.dtype not in _FLOAT_DTYPES or b.dtype != a.dtype:
                 reason = "PAIR_DTYPE_MISMATCH"
-            elif len(a.shape) != 2 or len(b.shape) != 2 or not all((*a.shape, *b.shape)):
+            elif not valid_shapes:
                 reason = "PAIR_SHAPE_INVALID"
             else:
-                record["rank"] = a.shape[0]
                 if a.shape[0] != b.shape[1]:
                     reason = "PAIR_RANK_MISMATCH"
+                elif not _known_module(module) or target is None:
+                    reason = "UNKNOWN_TARGET_MODULE"
                 elif len(target.shape) != 2 or (b.shape[0], a.shape[1]) != target.shape:
                     reason = "TARGET_SHAPE_MISMATCH"
                 else:
