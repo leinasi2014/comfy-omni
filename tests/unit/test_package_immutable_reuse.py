@@ -24,7 +24,7 @@ def _plan(tmp_path: Path):
         sources[f"Ref2VA/{component}/payload.bin"] = source
         receipts.append(
             ComponentReceipt(
-                component, str(directory), "test.component/v1", "c" * 64, tool,
+                component, str(directory), "test.component/v1", hashlib.sha256(component.encode()).hexdigest(), tool,
                 (ComponentFile("payload.bin", len(payload), hashlib.sha256(payload).hexdigest()),),
             )
         )
