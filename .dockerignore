@@ -25,3 +25,7 @@ __pycache__
 .env.*
 *.pem
 *.key
+
+# The H3 host target installs the candidate wheel produced by package-check.
+!dist/
+!dist/*.whl
