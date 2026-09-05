@@ -265,7 +265,9 @@ def _gpu_host(args, rank, local, architecture):
     torch.cuda.set_device(local)
     device = torch.device("cuda", local)
     props = torch.cuda.get_device_properties(device)
-    _require(str(props.uuid) == args.device_uuids[local], "actual CUDA device UUID differs")
+    # Torch exposes _CUuuid without the NVIDIA CLI's GPU- prefix.
+    actual_uuid = "GPU-" + str(props.uuid).removeprefix("GPU-")
+    _require(actual_uuid == args.device_uuids[local], "actual CUDA device UUID differs")
     torch.manual_seed(SEED)
     torch.cuda.manual_seed_all(SEED)
     torch.backends.cuda.matmul.allow_tf32 = False
@@ -536,7 +538,7 @@ def _run(args, rank, local):
                 "rank": rank,
                 "local_rank": local,
                 "pid": os.getpid(),
-                "device_uuid": str(host.properties.uuid),
+                "device_uuid": "GPU-" + str(host.properties.uuid).removeprefix("GPU-"),
                 "device_name": host.properties.name,
                 "device_total_bytes": host.properties.total_memory,
                 "architecture": dict(architecture),
